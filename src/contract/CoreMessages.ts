@@ -108,3 +108,12 @@ export type PageFetched = typeof PageFetched.Type
 export const MainLogEntry = Schema.TaggedStruct('MainLogEntry', { entry: LogEntry })
 
 export type MainLogEntry = typeof MainLogEntry.Type
+
+/** Core asks for the updater's status when it starts: main may have told an earlier core. */
+export const UpdateWatch = Schema.TaggedStruct('UpdateWatch', {})
+
+export type UpdateWatch = typeof UpdateWatch.Type
+
+export const UpdateInstall = Schema.TaggedStruct('UpdateInstall', {})
+
+export type UpdateInstall = typeof UpdateInstall.Type

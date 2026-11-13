@@ -36,6 +36,8 @@ import { useDetectionsAvailable } from '../features/detections/hooks/useDetectio
 import { OverlayPopover } from '../features/overlay/OverlayPopover'
 import { SubtitlesPopover } from '../features/subtitles/SubtitlesPopover'
 import { StorageMeter } from '../features/storage/StorageMeter'
+import { useNewScreens } from '../features/updates/hooks/useNewScreens'
+import { WhatsNewPopover } from '../features/updates/WhatsNewPopover'
 
 const appDestinations = [
   { screen: 'dashboard', label: 'Dashboard', Icon: SquaresFourIcon },
@@ -69,15 +71,25 @@ const translationPages = [
   { page: 'manga', label: 'Manga' },
 ] as const satisfies ReadonlyArray<{ page: SettingsPage; label: string }>
 
+function NewTag() {
+  return (
+    <span className="ml-auto rounded-full bg-tint-violet px-[7px] py-px text-[10.5px] font-medium text-tint-violet-foreground">
+      New
+    </span>
+  )
+}
+
 function NavButton({
   label,
   Icon,
   active,
+  isNew = false,
   onClick,
 }: {
   readonly label: string
   readonly Icon: Icon
   readonly active: boolean
+  readonly isNew?: boolean
   readonly onClick: () => void
 }) {
   return (
@@ -92,11 +104,18 @@ function NavButton({
     >
       <Icon />
       {label}
+      {isNew ? <NewTag /> : null}
     </Button>
   )
 }
 
-function ReaderGroup({ onGo }: { readonly onGo: (screen: Screen) => void }) {
+function ReaderGroup({
+  newScreens,
+  onGo,
+}: {
+  readonly newScreens: ReadonlySet<Screen>
+  readonly onGo: (screen: Screen) => void
+}) {
   const screen = useAtomValue(screenAtom)
   const inGroup = readerScreens.some((destination) => destination.screen === screen)
   const [open, setOpen] = useState(true)
@@ -130,6 +149,7 @@ function ReaderGroup({ onGo }: { readonly onGo: (screen: Screen) => void }) {
               onClick={() => onGo(destination.screen)}
             >
               {destination.label}
+              {newScreens.has(destination.screen) ? <NewTag /> : null}
             </Button>
           ))}
         </div>
@@ -242,6 +262,7 @@ export function Sidebar() {
   const setOpenNovel = useAtomSet(openNovelAtom)
   const setOpenGlossary = useAtomSet(openGlossaryAtom)
   const open = useAtomValue(sidebarOpenAtom)
+  const newScreens = useNewScreens()
 
   const go = (destination: Screen) => {
     setScreen(destination)
@@ -277,14 +298,16 @@ export function Sidebar() {
               label={destination.label}
               Icon={destination.Icon}
               active={screen === destination.screen}
+              isNew={newScreens.has(destination.screen)}
               onClick={() => go(destination.screen)}
             />
           ))}
-          <ReaderGroup onGo={go} />
+          <ReaderGroup newScreens={newScreens} onGo={go} />
           <NavButton
             label={mangaDestination.label}
             Icon={mangaDestination.Icon}
             active={screen === mangaDestination.screen}
+            isNew={newScreens.has(mangaDestination.screen)}
             onClick={() => go(mangaDestination.screen)}
           />
           <div className="flex-1" />
@@ -293,6 +316,7 @@ export function Sidebar() {
             label="Plugins"
             Icon={PuzzlePieceIcon}
             active={screen === 'plugins'}
+            isNew={newScreens.has('plugins')}
             onClick={() => go('plugins')}
           />
           <NavButton
@@ -301,6 +325,7 @@ export function Sidebar() {
             active={false}
             onClick={() => setScreen('settings')}
           />
+          <WhatsNewPopover onGo={go} />
         </>
       )}
     </nav>

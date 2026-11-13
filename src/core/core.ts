@@ -76,6 +76,8 @@ import { SubtitlePreferences } from './subtitles/SubtitlePreferences'
 import { GameTranslationLive } from './translation/GameTranslation'
 import { GameFileHashes } from './translation/GameFileHashes'
 import { TranslationLines } from './translation/TranslationLines'
+import { MainUpdater } from './updates/MainUpdater'
+import { UpdatesRpcLive } from './updates/Updates'
 
 const fromMessagePortMain = (port: Electron.MessagePortMain): PortRunner.Port => ({
   onMessage: (listener) => {
@@ -375,6 +377,8 @@ const NovelsLive = NovelsRpcLive.pipe(
   ]),
 )
 
+const UpdatesLive = UpdatesRpcLive.pipe(Layer.provide(MainUpdater.live))
+
 const DiagnosticsLive = Layer.mergeAll(DiagnosticsRpcLive, MainLogEntriesLive, CoreStartedLive)
 
 const LoggingLive = LogBook.logger.pipe(Layer.provideMerge(LogBook.layer))
@@ -402,6 +406,7 @@ const CoreLive = RpcServer.layer(WenbuRpc).pipe(
     DashboardRpcLive,
     DetailsLive,
     NovelsLive,
+    UpdatesLive,
     RpcLoggingLive,
   ]),
   Layer.provide(DiskSpace.layer),

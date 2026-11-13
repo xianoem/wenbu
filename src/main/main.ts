@@ -33,12 +33,15 @@ import {
   SourceSignOut,
   SubtitleLockToggle,
   SubtitleWindow,
+  UpdateInstall,
+  UpdateWatch,
 } from '#contract/CoreMessages'
 import type { CoreStopped } from '#contract/CoreStopped'
 import { pageImageScheme, pageImageWanted, thumbnailWanted } from '#contract/PageImage'
 import { WindowAction } from '#contract/WindowAction'
 import appIconPng from '../../build/icon.png?asset'
 import appIconIco from '../../build/icon.ico?asset'
+import { appUpdater } from './appUpdater'
 import { coreSupervisor, type CoreSupervisor } from './coreSupervisor'
 import { coreCrashBudget } from './crashBudget'
 import { type CredentialKey, loadCredentialKey, type SecretProtector } from './credentialKey'
@@ -351,6 +354,26 @@ const startNovelPages = (core: CoreSupervisor) => {
       Effect.runFork(Effect.map(pages.fetch(message), (page) => core.postMessage(page, [])))
     }
   })
+}
+
+const isUpdateWatch = Schema.is(UpdateWatch)
+
+const isUpdateInstall = Schema.is(UpdateInstall)
+
+const startUpdates = (core: CoreSupervisor) => {
+  const updater = appUpdater({ log, onStatus: (status) => core.postMessage(status, []) })
+
+  core.on('message', (message) => {
+    if (isUpdateWatch(message)) {
+      core.postMessage(updater.status(), [])
+    }
+
+    if (isUpdateInstall(message)) {
+      updater.install()
+    }
+  })
+
+  return updater.run
 }
 
 const isWindowAction = Schema.is(WindowAction)
@@ -734,6 +757,7 @@ const start = Effect.gen(function* () {
   startNovelPages(core)
   mainWindow = createWindow(core)
   yield* Effect.forkDetach(watchClipboard(core))
+  yield* Effect.forkDetach(startUpdates(core))
 })
 
 const failStartup = (cause: Cause.Cause<unknown>) =>

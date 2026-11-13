@@ -1,0 +1,35 @@
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: windows-latest
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - uses: astral-sh/setup-uv@v6
+      - run: pnpm build:native
+      - run: pnpm check
+      - run: pnpm test
+      - run: pnpm test:python
+      - run: pnpm build
+      # Uploads the installer and latest.yml to a draft, so the updater never sees half a release.
+      - run: pnpm exec electron-builder --win --publish always
+      - name: Publish the release with its notes
+        shell: bash
+        run: |
+          node scripts/release.ts body "$GITHUB_REF_NAME" > release-body.md
+          gh release edit "$GITHUB_REF_NAME" --draft=false --latest --title "Wenbu ${GITHUB_REF_NAME#v}" --notes-file release-body.md

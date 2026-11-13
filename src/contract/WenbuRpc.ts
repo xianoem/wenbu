@@ -19,8 +19,9 @@ import { PluginsRpc } from './Plugins'
 import { StorageRpc } from './Storage'
 import { SubtitlesRpc } from './Subtitles'
 import { TranslationOverlayRpc } from './TranslationOverlay'
+import { UpdatesRpc } from './Updates'
 
-export class WenbuRpc extends AppearanceRpc.merge(
+export const WenbuRpc = AppearanceRpc.merge(
   LlmRpc,
   LibraryRpc,
   GameTranslationRpc,
@@ -41,4 +42,5 @@ export class WenbuRpc extends AppearanceRpc.merge(
   DashboardRpc,
   DetailsRpc,
   NovelsRpc,
-).middleware(RpcLogging) {}
+  UpdatesRpc,
+).middleware(RpcLogging)
