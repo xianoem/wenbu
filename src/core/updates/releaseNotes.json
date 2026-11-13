@@ -1,5 +1,26 @@
 [
   {
+    "version": "0.1.1",
+    "date": "2026-11-13",
+    "changes": [
+      {
+        "kind": "fixed",
+        "area": "app",
+        "text": "Show What's new only after an update or while one is waiting"
+      },
+      {
+        "kind": "new",
+        "area": "details",
+        "text": "Offer Try again when a DLsite request fails"
+      },
+      {
+        "kind": "fixed",
+        "area": "novels",
+        "text": "Stop checking for sexual violence, slavery and misogynistic protagonists"
+      }
+    ]
+  },
+  {
     "version": "0.1.0",
     "date": "2026-11-13",
     "changes": [
