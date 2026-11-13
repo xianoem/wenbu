@@ -20,6 +20,7 @@ import {
   whatsNewKeys,
 } from './updates'
 import { splitReleases } from './utils/releaseSections'
+import { whatsNewShown } from './utils/whatsNewShown'
 
 const subtitleOf = (release: Release | undefined, updatedFrom: string | undefined) => {
   if (release === undefined) {
@@ -162,6 +163,11 @@ export function WhatsNewPopover({ onGo }: { readonly onGo: (screen: Screen) => v
 
   const whatsNew = whatsNewResult.value
   const status = AsyncResult.isSuccess(statusResult) ? statusResult.value : undefined
+
+  if (!open && !whatsNewShown(whatsNew, status)) {
+    return null
+  }
+
   const { opened, earlier } = splitReleases(whatsNew)
   const ready = status?.state === 'ready'
 
