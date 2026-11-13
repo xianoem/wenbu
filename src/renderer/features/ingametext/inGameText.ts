@@ -49,10 +49,6 @@ export const setInGameTextLockedAtom = Core.mutation('setInGameTextLocked')
 
 export const shortenInGameTextAtom = Core.mutation('shortenInGameText')
 
-export const scanGameImagesAtom = Core.mutation('scanGameImages')
-
-export const cancelImageScanAtom = Core.mutation('cancelImageScan')
-
 const localStorageRuntime = Atom.runtime(BrowserKeyValueStore.layerLocalStorage)
 
 export const answeredHintsAtom = Atom.kvs({

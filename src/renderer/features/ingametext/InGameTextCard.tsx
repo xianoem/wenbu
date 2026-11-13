@@ -2,11 +2,7 @@ import { useAtomSet, useAtomValue } from '@effect/atom-react'
 import { type Exit, Option } from 'effect'
 import { AsyncResult } from 'effect/reactivity'
 import { useState } from 'react'
-import {
-  type InGameTextSettings,
-  type InGameTextSummary,
-  defaultInGameTextSettings,
-} from '#contract/InGameText'
+import { type InGameTextSettings, defaultInGameTextSettings } from '#contract/InGameText'
 import type { Game } from '#contract/Library'
 import { type HookedControl, supportsLiveControls } from '#contract/LiveControls'
 import { formErrorOf } from '#lib/forms'
@@ -16,11 +12,9 @@ import { Checkbox } from '#ui/checkbox'
 import { Switch } from '#ui/switch'
 import { liveControlsAtom } from '../livecontrols/liveControls'
 import {
-  cancelImageScanAtom,
   inGameTextSettingsAtom,
   inGameTextSummaryAtom,
   saveInGameTextSettingsAtom,
-  scanGameImagesAtom,
   settingsKeys,
 } from './inGameText'
 
@@ -60,43 +54,11 @@ function Row({
   )
 }
 
-const imagesDescription = (
-  summary: InGameTextSummary | undefined,
-  onScan: () => void,
-  onCancel: () => void,
-) => {
-  if (summary?.scan !== undefined) {
-    return (
-      <>
-        Scanning {summary.scan.done} of {summary.scan.total} images ·{' '}
-        <Button variant="link" className="h-auto p-0 text-[13px]" onClick={onCancel}>
-          Cancel
-        </Button>
-      </>
-    )
-  }
-
-  if (summary === undefined || summary.images.total === 0) {
-    return 'Wenbu reads the text in the game’s pictures once, then paints its translation over them.'
-  }
-
-  return (
-    <>
-      {summary.images.withText} of {plural(summary.images.total, 'image')} contain text ·{' '}
-      <Button variant="link" className="h-auto p-0 text-[13px]" onClick={onScan}>
-        Scan again
-      </Button>
-    </>
-  )
-}
-
 export function InGameTextCard({ game }: { readonly game: Game }) {
   const settingsResult = useAtomValue(inGameTextSettingsAtom(game.id))
   const summaryResult = useAtomValue(inGameTextSummaryAtom(game.id))
   const live = useAtomValue(liveControlsAtom)
   const save = useAtomSet(saveInGameTextSettingsAtom, { mode: 'promiseExit' })
-  const scan = useAtomSet(scanGameImagesAtom, { mode: 'promiseExit' })
-  const cancelScan = useAtomSet(cancelImageScanAtom)
   const openReview = useAtomSet(inGameTextReviewAtom)
   const [error, setError] = useState<string | undefined>(undefined)
 
@@ -131,16 +93,6 @@ export function InGameTextCard({ game }: { readonly game: Game }) {
       }),
     )
 
-  const startScan = () => report(scan({ payload: { gameId: game.id } }))
-
-  const changeImages = async (imageText: boolean) => {
-    await change({ imageText })
-
-    if (imageText && summary !== undefined && summary.images.total === 0) {
-      await startScan()
-    }
-  }
-
   const wrapUnavailable = unavailable('wordWrap')
   const menusUnavailable = unavailable('inGameText')
 
@@ -158,7 +110,7 @@ export function InGameTextCard({ game }: { readonly game: Game }) {
     <section className="mt-4 rounded-3xl bg-card p-5 shadow-card">
       <h2 className="text-[15px] font-semibold tracking-tight">In-game text</h2>
       <p className="mt-1.5 mb-2 text-muted-foreground">
-        Menus, options and images the script translation can’t reach.
+        Menus and options the script translation can’t reach.
       </p>
 
       <Row
@@ -167,15 +119,6 @@ export function InGameTextCard({ game }: { readonly game: Game }) {
         checked={settings.uiText}
         disabled={!loaded}
         onCheckedChange={(uiText) => change({ uiText })}
-      />
-      <Row
-        title="Translate text in images"
-        description={imagesDescription(summary, startScan, () =>
-          cancelScan({ payload: { gameId: game.id } }),
-        )}
-        checked={settings.imageText}
-        disabled={!loaded}
-        onCheckedChange={(imageText) => changeImages(imageText)}
       />
       <Row
         title="Wrap long dialogue lines"

@@ -1,7 +1,6 @@
 import { useAtomRefresh, useAtomSet, useAtomSubscribe, useAtomValue } from '@effect/atom-react'
 import {
   ArrowLeftIcon,
-  ImageIcon,
   LockSimpleIcon,
   LockSimpleOpenIcon,
   MagnifyingGlassIcon,
@@ -13,7 +12,6 @@ import { AsyncResult } from 'effect/reactivity'
 import { useState } from 'react'
 import {
   defaultInGameTextSettings,
-  ImageStyle,
   type InGameTextEntry,
   type InGameTextFilter,
   type InGameTextSettings,
@@ -56,7 +54,6 @@ const filters: ReadonlyArray<{ readonly id: InGameTextFilter; readonly label: st
   { id: 'all', label: 'All' },
   { id: 'too-long', label: 'Too long' },
   { id: 'edited', label: 'Edited' },
-  { id: 'images', label: 'Images' },
 ]
 
 const fitLabels: Record<TextFit, string> = {
@@ -65,11 +62,6 @@ const fitLabels: Record<TextFit, string> = {
   squeezed: 'Drawn squeezed',
   wrapped: 'Drawn on two lines',
   'too-long': 'Cut off: too long for its space',
-}
-
-const imageStyleLabels: Record<ImageStyle, string> = {
-  cover: 'Paint over the text',
-  label: 'Dark label over the text',
 }
 
 const whenTooLongLabels: Record<WhenTooLong, string> = {
@@ -266,20 +258,6 @@ function OptionsMenu({ game }: { readonly game: Game }) {
         </DropdownMenuGroup>
         <DropdownMenuSeparator />
         <DropdownMenuGroup>
-          <DropdownMenuLabel>Image text</DropdownMenuLabel>
-          <DropdownMenuRadioGroup
-            value={settings.imageStyle}
-            onValueChange={(value) => change({ imageStyle: ImageStyle.make(value) })}
-          >
-            {ImageStyle.literals.map((option) => (
-              <DropdownMenuRadioItem key={option} value={option}>
-                {imageStyleLabels[option]}
-              </DropdownMenuRadioItem>
-            ))}
-          </DropdownMenuRadioGroup>
-        </DropdownMenuGroup>
-        <DropdownMenuSeparator />
-        <DropdownMenuGroup>
           <DropdownMenuLabel>Hold in the game to see the original</DropdownMenuLabel>
           <DropdownMenuRadioGroup
             value={settings.originalKey}
@@ -316,9 +294,6 @@ function EntryButton({
       onClick={onSelect}
     >
       <span className="text-sm">
-        {entry.origin === 'image' ? (
-          <ImageIcon className="mr-1 inline size-3.5 text-muted-foreground" />
-        ) : null}
         {entry.translatedText}
         {entry.fit === 'too-long' ? <TooLongBadge /> : null}
         {entry.locked ? (
@@ -338,7 +313,11 @@ export function InGameTextReviewPage({ game }: { readonly game: Game }) {
   const key = listKey(game.id, filter, search)
   const result = useAtomValue(inGameTextsAtom(key))
   const refresh = useAtomRefresh(inGameTextsAtom(key))
-  const entries = AsyncResult.isSuccess(result) ? result.value : []
+
+  const entries = AsyncResult.isSuccess(result)
+    ? result.value.filter((entry) => entry.origin !== 'image')
+    : []
+
   const selected = entries.find((entry) => entryId(entry) === selectedId) ?? entries[0]
 
   useAtomSubscribe(inGameTextSummaryAtom(game.id), () => refresh())
