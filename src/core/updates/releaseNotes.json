@@ -1,5 +1,16 @@
 [
   {
+    "version": "0.1.2",
+    "date": "2026-11-13",
+    "changes": [
+      {
+        "kind": "fixed",
+        "area": "app",
+        "text": "Align plugin update status and widen the end-of-speech pause slider"
+      }
+    ]
+  },
+  {
     "version": "0.1.1",
     "date": "2026-11-13",
     "changes": [
