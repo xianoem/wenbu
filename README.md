@@ -12,6 +12,21 @@ Wenbu is a Windows desktop app for playing and reading untranslated games, manga
 - **Novels**: translate novels with glossaries that keep names and terms consistent.
 - **Your own models**: connect any supported LLM provider, define presets and track what each one costs.
 
+## Install
+
+Download the latest `wenbu-…-setup.exe` from [Releases](https://github.com/xianoem/wenbu/releases) and run it. After that Wenbu keeps itself up to date: it downloads a new version in the background and installs it the next time you quit or restart.
+
+### Windows may warn you about the installer
+
+Wenbu is free and open source, and its installer is not code signed, because a signing certificate costs money every year. Windows doesn't know an unsigned installer, so the first time you run it SmartScreen shows "Windows protected your PC". To continue, choose **More info**, then **Run anyway**. You see this once; updates install without it.
+
+Some antivirus tools may also flag Wenbu. To show a translation over a running game, Wenbu reads the game's text from inside the game's process, and that is the same technique some malware uses, so tools that judge by behaviour can mistake it for one. This is a false positive.
+
+You don't have to take that on trust:
+
+- Every installer is built from this repository's source by [GitHub Actions](https://github.com/xianoem/wenbu/actions), not on someone's computer.
+- The source is here to read, and you can build the installer yourself with the steps below.
+
 ## Development
 
 You need:
