@@ -1,0 +1,10 @@
+{
+  "extends": "./tsconfig.base.json",
+  "include": ["src/contract/**/*.ts", "src/renderer/**/*.ts", "src/renderer/**/*.tsx"],
+  "compilerOptions": {
+    "lib": ["ES2024", "DOM", "DOM.Iterable"],
+    "jsx": "react-jsx",
+    "types": ["vite/client"],
+    "tsBuildInfoFile": "./node_modules/.cache/tsconfig.web.tsbuildinfo"
+  }
+}

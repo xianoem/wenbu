@@ -1,0 +1,3 @@
+LIBRARY wenbu-rgss
+EXPORTS
+    wenbu_reply

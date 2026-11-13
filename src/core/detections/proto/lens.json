@@ -1,0 +1,1710 @@
+{
+  "nested": {
+    "lens": {
+      "options": {
+        "optimize_for": "LITE_RUNTIME"
+      },
+      "nested": {
+        "HandshakePing": {
+          "fields": {
+            "capabilities": {
+              "rule": "repeated",
+              "type": ".lens.FeatureCapability",
+              "id": 1
+            }
+          }
+        },
+        "SubmitQuery": {
+          "fields": {
+            "payload": {
+              "type": ".lens.QueryPayload",
+              "id": 1
+            }
+          }
+        },
+        "HandshakeResponse": {
+          "fields": {
+            "capabilities": {
+              "rule": "repeated",
+              "type": ".lens.FeatureCapability",
+              "id": 1
+            }
+          }
+        },
+        "ClientToAimMessage": {
+          "oneofs": {
+            "event_message": {
+              "oneof": ["handshake_ping", "submit_query"]
+            }
+          },
+          "fields": {
+            "handshake_ping": {
+              "type": ".lens.HandshakePing",
+              "id": 1
+            },
+            "submit_query": {
+              "type": ".lens.SubmitQuery",
+              "id": 2
+            }
+          }
+        },
+        "AimToClientMessage": {
+          "oneofs": {
+            "event_message": {
+              "oneof": ["handshake_response"]
+            }
+          },
+          "fields": {
+            "handshake_response": {
+              "type": ".lens.HandshakeResponse",
+              "id": 1
+            }
+          }
+        },
+        "FeatureCapability": {
+          "values": {
+            "DEFAULT": 0
+          }
+        },
+        "LensImageQueryData": {
+          "fields": {
+            "search_session_id": {
+              "type": "string",
+              "id": 1
+            },
+            "request_id": {
+              "type": ".lens.LensOverlayRequestId",
+              "id": 2
+            },
+            "visual_input_type": {
+              "type": ".lens.LensOverlayVisualInputType",
+              "id": 4
+            },
+            "visual_search_interaction_data": {
+              "type": ".lens.LensOverlayVisualSearchInteractionData",
+              "id": 7
+            }
+          }
+        },
+        "QueryPayload": {
+          "fields": {
+            "query_text": {
+              "type": "string",
+              "id": 1
+            },
+            "query_text_source": {
+              "type": ".lens.QueryPayload.QueryTextSource",
+              "id": 3
+            },
+            "lens_image_query_data": {
+              "rule": "repeated",
+              "type": ".lens.LensImageQueryData",
+              "id": 2
+            }
+          },
+          "nested": {
+            "QueryTextSource": {
+              "values": {
+                "QUERY_TEXT_SOURCE_UNSPECIFIED": 0,
+                "QUERY_TEXT_SOURCE_KEYBOARD_INPUT": 1
+              }
+            }
+          }
+        },
+        "LensOverlayClientContext": {
+          "fields": {
+            "platform": {
+              "type": ".lens.Platform",
+              "id": 1
+            },
+            "surface": {
+              "type": ".lens.Surface",
+              "id": 2
+            },
+            "locale_context": {
+              "type": ".lens.LocaleContext",
+              "id": 4
+            },
+            "app_id": {
+              "type": "string",
+              "id": 6
+            },
+            "client_filters": {
+              "type": ".lens.AppliedFilters",
+              "id": 17
+            },
+            "rendering_context": {
+              "type": ".lens.RenderingContext",
+              "id": 20
+            },
+            "client_logging_data": {
+              "type": ".lens.ClientLoggingData",
+              "id": 23
+            }
+          }
+        },
+        "LocaleContext": {
+          "fields": {
+            "language": {
+              "type": "string",
+              "id": 1
+            },
+            "region": {
+              "type": "string",
+              "id": 2
+            },
+            "time_zone": {
+              "type": "string",
+              "id": 3
+            }
+          }
+        },
+        "RenderingContext": {
+          "fields": {
+            "rendering_environment": {
+              "type": ".lens.LensRenderingEnvironment",
+              "id": 2
+            }
+          }
+        },
+        "ClientLoggingData": {
+          "fields": {
+            "is_history_eligible": {
+              "type": "bool",
+              "id": 1
+            }
+          }
+        },
+        "LensRenderingEnvironment": {
+          "values": {
+            "RENDERING_ENV_UNSPECIFIED": 0,
+            "RENDERING_ENV_LENS_OVERLAY": 14
+          }
+        },
+        "LensOverlayClientLogs": {
+          "fields": {
+            "phase_latencies_metadata": {
+              "type": ".lens.LensOverlayPhaseLatenciesMetadata",
+              "id": 1
+            },
+            "lens_overlay_entry_point": {
+              "type": ".lens.LensOverlayClientLogs.LensOverlayEntryPoint",
+              "id": 2
+            },
+            "paella_id": {
+              "type": "uint64",
+              "id": 3
+            },
+            "metrics_collection_disabled": {
+              "type": "bool",
+              "id": 5
+            }
+          },
+          "nested": {
+            "LensOverlayEntryPoint": {
+              "values": {
+                "UNKNOWN_ENTRY_POINT": 0,
+                "APP_MENU": 1,
+                "PAGE_CONTEXT_MENU": 2,
+                "IMAGE_CONTEXT_MENU": 3,
+                "OMNIBOX_BUTTON": 4,
+                "TOOLBAR_BUTTON": 5,
+                "FIND_IN_PAGE": 6,
+                "OMNIBOX_PAGE_ACTION": 7,
+                "OMNIBOX_CONTEXTUAL_SUGGESTION": 8,
+                "HOMEWORK_ACTION_CHIP": 9,
+                "TEXT_CONTEXT_MENU": 10,
+                "VIDEO_CONTEXT_MENU": 11
+              }
+            }
+          }
+        },
+        "ClientPlatform": {
+          "values": {
+            "CLIENT_PLATFORM_UNSPECIFIED": 0,
+            "CLIENT_PLATFORM_LENS_OVERLAY": 2
+          }
+        },
+        "LensOverlayClusterInfo": {
+          "fields": {
+            "server_session_id": {
+              "type": "string",
+              "id": 1
+            },
+            "search_session_id": {
+              "type": "string",
+              "id": 2
+            },
+            "routing_info": {
+              "type": ".lens.LensOverlayRoutingInfo",
+              "id": 6
+            }
+          }
+        },
+        "LensOverlayContextualInputs": {
+          "fields": {
+            "inputs": {
+              "rule": "repeated",
+              "type": ".lens.LensOverlayContextualInputs.LensOverlayContextualInput",
+              "id": 1
+            }
+          },
+          "nested": {
+            "LensOverlayContextualInput": {
+              "fields": {
+                "request_id": {
+                  "type": ".lens.LensOverlayRequestId",
+                  "id": 1
+                }
+              }
+            }
+          }
+        },
+        "DeepGleamData": {
+          "oneofs": {
+            "rendering_oneof": {
+              "oneof": ["translation"]
+            }
+          },
+          "fields": {
+            "translation": {
+              "type": ".lens.TranslationData",
+              "id": 10
+            },
+            "visual_object_id": {
+              "rule": "repeated",
+              "type": "string",
+              "id": 11
+            }
+          }
+        },
+        "TranslationData": {
+          "fields": {
+            "status": {
+              "type": ".lens.TranslationData.Status",
+              "id": 1
+            },
+            "target_language": {
+              "type": "string",
+              "id": 2
+            },
+            "source_language": {
+              "type": "string",
+              "id": 3
+            },
+            "translation": {
+              "type": "string",
+              "id": 4
+            },
+            "line": {
+              "rule": "repeated",
+              "type": ".lens.TranslationData.Line",
+              "id": 5
+            },
+            "writing_direction": {
+              "type": ".lens.WritingDirection",
+              "id": 7
+            },
+            "alignment": {
+              "type": ".lens.Alignment",
+              "id": 8
+            },
+            "justified": {
+              "type": "bool",
+              "id": 9
+            }
+          },
+          "nested": {
+            "Status": {
+              "fields": {
+                "code": {
+                  "type": ".lens.TranslationData.Status.Code",
+                  "id": 1
+                }
+              },
+              "nested": {
+                "Code": {
+                  "values": {
+                    "UNKNOWN": 0,
+                    "SUCCESS": 1,
+                    "SERVER_ERROR": 2,
+                    "UNSUPPORTED_LANGUAGE_PAIR": 3,
+                    "SAME_LANGUAGE": 4,
+                    "UNKNOWN_SOURCE_LANGUAGE": 5,
+                    "INVALID_REQUEST": 6,
+                    "DEADLINE_EXCEEDED": 7,
+                    "EMPTY_TRANSLATION": 8,
+                    "NO_OP_TRANSLATION": 9
+                  }
+                }
+              }
+            },
+            "TextStyle": {
+              "fields": {
+                "text_color": {
+                  "type": "uint32",
+                  "id": 1
+                },
+                "background_primary_color": {
+                  "type": "uint32",
+                  "id": 2
+                }
+              }
+            },
+            "BackgroundImageData": {
+              "fields": {
+                "background_image": {
+                  "type": "bytes",
+                  "id": 1
+                },
+                "image_width": {
+                  "type": "int32",
+                  "id": 2
+                },
+                "image_height": {
+                  "type": "int32",
+                  "id": 3
+                },
+                "vertical_padding": {
+                  "type": "float",
+                  "id": 4
+                },
+                "horizontal_padding": {
+                  "type": "float",
+                  "id": 5
+                },
+                "file_format": {
+                  "type": ".lens.TranslationData.BackgroundImageData.FileFormat",
+                  "id": 6
+                },
+                "text_mask": {
+                  "type": "bytes",
+                  "id": 7
+                }
+              },
+              "nested": {
+                "FileFormat": {
+                  "values": {
+                    "UNKNOWN": 0,
+                    "RAW_BYTES_RGBA": 1,
+                    "PNG_RGBA": 2,
+                    "WEBP_RGBA": 3,
+                    "JPEG_RGB_PNG_MASK": 4
+                  }
+                }
+              }
+            },
+            "Line": {
+              "fields": {
+                "start": {
+                  "type": "int32",
+                  "id": 1
+                },
+                "end": {
+                  "type": "int32",
+                  "id": 2
+                },
+                "style": {
+                  "type": ".lens.TranslationData.TextStyle",
+                  "id": 3
+                },
+                "word": {
+                  "rule": "repeated",
+                  "type": ".lens.TranslationData.Line.Word",
+                  "id": 5
+                },
+                "background_image_data": {
+                  "type": ".lens.TranslationData.BackgroundImageData",
+                  "id": 9
+                }
+              },
+              "nested": {
+                "Word": {
+                  "fields": {
+                    "start": {
+                      "type": "int32",
+                      "id": 1
+                    },
+                    "end": {
+                      "type": "int32",
+                      "id": 2
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "LensOverlayDocument": {
+          "fields": {
+            "pages": {
+              "rule": "repeated",
+              "type": ".lens.Page",
+              "id": 1
+            }
+          }
+        },
+        "Page": {
+          "fields": {
+            "page_number": {
+              "type": "int32",
+              "id": 1
+            },
+            "text_segments": {
+              "rule": "repeated",
+              "type": "string",
+              "id": 4
+            }
+          }
+        },
+        "AppliedFilter": {
+          "oneofs": {
+            "filter_payload": {
+              "oneof": ["translate"]
+            }
+          },
+          "fields": {
+            "filter_type": {
+              "type": ".lens.LensOverlayFilterType",
+              "id": 1
+            },
+            "translate": {
+              "type": ".lens.AppliedFilter.Translate",
+              "id": 3
+            }
+          },
+          "nested": {
+            "Translate": {
+              "fields": {
+                "target_language": {
+                  "type": "string",
+                  "id": 1
+                },
+                "source_language": {
+                  "type": "string",
+                  "id": 2
+                }
+              }
+            }
+          }
+        },
+        "AppliedFilters": {
+          "fields": {
+            "filter": {
+              "rule": "repeated",
+              "type": ".lens.AppliedFilter",
+              "id": 1
+            }
+          }
+        },
+        "LensOverlayFilterType": {
+          "values": {
+            "UNKNOWN_FILTER_TYPE": 0,
+            "TRANSLATE": 2,
+            "AUTO_FILTER": 7
+          }
+        },
+        "CenterRotatedBox": {
+          "fields": {
+            "center_x": {
+              "type": "float",
+              "id": 1
+            },
+            "center_y": {
+              "type": "float",
+              "id": 2
+            },
+            "width": {
+              "type": "float",
+              "id": 3
+            },
+            "height": {
+              "type": "float",
+              "id": 4
+            },
+            "rotation_z": {
+              "type": "float",
+              "id": 5
+            },
+            "coordinate_type": {
+              "type": ".lens.CoordinateType",
+              "id": 6
+            }
+          }
+        },
+        "Geometry": {
+          "fields": {
+            "bounding_box": {
+              "type": ".lens.CenterRotatedBox",
+              "id": 1
+            },
+            "segmentation_polygon": {
+              "rule": "repeated",
+              "type": ".lens.Polygon",
+              "id": 5
+            }
+          }
+        },
+        "ZoomedCrop": {
+          "fields": {
+            "crop": {
+              "type": ".lens.CenterRotatedBox",
+              "id": 1
+            },
+            "parent_width": {
+              "type": "int32",
+              "id": 2
+            },
+            "parent_height": {
+              "type": "int32",
+              "id": 3
+            },
+            "zoom": {
+              "type": "float",
+              "id": 4
+            }
+          }
+        },
+        "ImageCrop": {
+          "fields": {
+            "crop_id": {
+              "type": "string",
+              "id": 1
+            },
+            "image": {
+              "type": ".lens.ClientImage",
+              "id": 2
+            },
+            "zoomed_crop": {
+              "type": ".lens.ZoomedCrop",
+              "id": 3
+            }
+          }
+        },
+        "ImageData": {
+          "fields": {
+            "payload": {
+              "type": ".lens.ImagePayload",
+              "id": 1
+            },
+            "image_metadata": {
+              "type": ".lens.ImageMetadata",
+              "id": 3
+            },
+            "significant_regions": {
+              "rule": "repeated",
+              "type": ".lens.Geometry",
+              "id": 4
+            }
+          }
+        },
+        "ImagePayload": {
+          "fields": {
+            "image_bytes": {
+              "type": "bytes",
+              "id": 1
+            }
+          }
+        },
+        "ImageMetadata": {
+          "fields": {
+            "width": {
+              "type": "int32",
+              "id": 1
+            },
+            "height": {
+              "type": "int32",
+              "id": 2
+            }
+          }
+        },
+        "LensOverlayInteractionRequestMetadata": {
+          "fields": {
+            "type": {
+              "type": ".lens.LensOverlayInteractionRequestMetadata.Type",
+              "id": 1
+            },
+            "selection_metadata": {
+              "type": ".lens.LensOverlayInteractionRequestMetadata.SelectionMetadata",
+              "id": 2
+            },
+            "query_metadata": {
+              "type": ".lens.LensOverlayInteractionRequestMetadata.QueryMetadata",
+              "id": 4
+            }
+          },
+          "nested": {
+            "SelectionMetadata": {
+              "oneofs": {
+                "selection": {
+                  "oneof": ["point", "region", "object"]
+                }
+              },
+              "fields": {
+                "point": {
+                  "type": ".lens.LensOverlayInteractionRequestMetadata.SelectionMetadata.Point",
+                  "id": 1
+                },
+                "region": {
+                  "type": ".lens.LensOverlayInteractionRequestMetadata.SelectionMetadata.Region",
+                  "id": 2
+                },
+                "object": {
+                  "type": ".lens.LensOverlayInteractionRequestMetadata.SelectionMetadata.Object",
+                  "id": 3
+                }
+              },
+              "nested": {
+                "Point": {
+                  "fields": {
+                    "x": {
+                      "type": "float",
+                      "id": 1
+                    },
+                    "y": {
+                      "type": "float",
+                      "id": 2
+                    }
+                  }
+                },
+                "Region": {
+                  "fields": {
+                    "region": {
+                      "type": ".lens.CenterRotatedBox",
+                      "id": 1
+                    }
+                  }
+                },
+                "Object": {
+                  "fields": {
+                    "object_id": {
+                      "type": "string",
+                      "id": 1
+                    },
+                    "geometry": {
+                      "type": ".lens.Geometry",
+                      "id": 2
+                    }
+                  }
+                }
+              }
+            },
+            "QueryMetadata": {
+              "fields": {
+                "text_query": {
+                  "type": ".lens.TextQuery",
+                  "id": 2
+                }
+              }
+            },
+            "Type": {
+              "values": {
+                "UNKNOWN": 0,
+                "TAP": 1,
+                "REGION": 2,
+                "TEXT_SELECTION": 3,
+                "REGION_SEARCH": 4,
+                "OBJECT_FULFILLMENT": 5,
+                "CONTEXTUAL_SEARCH_QUERY": 9,
+                "PDF_QUERY": 10,
+                "WEBPAGE_QUERY": 11
+              }
+            }
+          }
+        },
+        "FunctionCall": {
+          "fields": {
+            "name": {
+              "type": "string",
+              "id": 1
+            },
+            "argument": {
+              "rule": "repeated",
+              "type": ".lens.Argument",
+              "id": 2
+            },
+            "signals": {
+              "type": ".lens.FunctionCallSignals",
+              "id": 4
+            }
+          }
+        },
+        "FunctionCallSignals": {
+          "fields": {
+            "translate_stickiness_signals": {
+              "type": ".lens.TranslateStickinessSignals",
+              "id": 311378150
+            }
+          }
+        },
+        "Argument": {
+          "fields": {
+            "name": {
+              "type": "string",
+              "id": 1
+            },
+            "value": {
+              "type": ".lens.ArgumentValue",
+              "id": 2
+            }
+          }
+        },
+        "ArgumentValue": {
+          "oneofs": {
+            "value": {
+              "oneof": ["simple_value"]
+            }
+          },
+          "fields": {
+            "simple_value": {
+              "type": ".lens.SimpleValue",
+              "id": 3
+            }
+          }
+        },
+        "SimpleValue": {
+          "oneofs": {
+            "value": {
+              "oneof": ["string_value"]
+            }
+          },
+          "fields": {
+            "string_value": {
+              "type": "string",
+              "id": 1
+            }
+          }
+        },
+        "Query": {
+          "fields": {
+            "intent_query": {
+              "type": ".lens.FunctionCall",
+              "id": 56249026
+            }
+          }
+        },
+        "MathSolverQuery": {
+          "fields": {
+            "math_input_equation": {
+              "type": "string",
+              "id": 3
+            }
+          }
+        },
+        "MessageSet": {
+          "fields": {
+            "message_set_extension": {
+              "type": ".lens.Query",
+              "id": 41401449
+            }
+          }
+        },
+        "OverlayObject": {
+          "fields": {
+            "id": {
+              "type": "string",
+              "id": 1
+            },
+            "geometry": {
+              "type": ".lens.Geometry",
+              "id": 2
+            },
+            "rendering_metadata": {
+              "type": ".lens.OverlayObject.RenderingMetadata",
+              "id": 8
+            },
+            "interaction_properties": {
+              "type": ".lens.OverlayObject.InteractionProperties",
+              "id": 4
+            },
+            "is_fulfilled": {
+              "type": "bool",
+              "id": 9
+            }
+          },
+          "nested": {
+            "RenderingMetadata": {
+              "fields": {
+                "render_type": {
+                  "type": ".lens.OverlayObject.RenderingMetadata.RenderType",
+                  "id": 1
+                }
+              },
+              "nested": {
+                "RenderType": {
+                  "values": {
+                    "DEFAULT": 0,
+                    "GLEAM": 1
+                  }
+                }
+              }
+            },
+            "InteractionProperties": {
+              "fields": {
+                "select_on_tap": {
+                  "type": "bool",
+                  "id": 1
+                }
+              }
+            }
+          }
+        },
+        "ClientImage": {
+          "fields": {
+            "image_content": {
+              "type": "bytes",
+              "id": 1
+            }
+          }
+        },
+        "LensOverlayPhaseLatenciesMetadata": {
+          "fields": {
+            "phase": {
+              "rule": "repeated",
+              "type": ".lens.LensOverlayPhaseLatenciesMetadata.Phase",
+              "id": 1
+            }
+          },
+          "nested": {
+            "Phase": {
+              "oneofs": {
+                "phase_data": {
+                  "oneof": ["image_downscale_data", "image_encode_data"]
+                }
+              },
+              "fields": {
+                "image_downscale_data": {
+                  "type": ".lens.LensOverlayPhaseLatenciesMetadata.Phase.ImageDownscaleData",
+                  "id": 3
+                },
+                "image_encode_data": {
+                  "type": ".lens.LensOverlayPhaseLatenciesMetadata.Phase.ImageEncodeData",
+                  "id": 4
+                }
+              },
+              "nested": {
+                "ImageDownscaleData": {
+                  "fields": {
+                    "original_image_size": {
+                      "type": "int64",
+                      "id": 1
+                    },
+                    "downscaled_image_size": {
+                      "type": "int64",
+                      "id": 2
+                    }
+                  }
+                },
+                "ImageEncodeData": {
+                  "fields": {
+                    "original_image_type": {
+                      "type": ".lens.LensOverlayPhaseLatenciesMetadata.ImageType",
+                      "id": 1
+                    },
+                    "encoded_image_size_bytes": {
+                      "type": "int64",
+                      "id": 2
+                    }
+                  }
+                }
+              }
+            },
+            "ImageType": {
+              "values": {
+                "UNKNOWN": 0,
+                "JPEG": 1,
+                "PNG": 2,
+                "WEBP": 3
+              }
+            }
+          }
+        },
+        "Platform": {
+          "values": {
+            "PLATFORM_UNSPECIFIED": 0,
+            "PLATFORM_WEB": 3,
+            "PLATFORM_LENS_OVERLAY": 6
+          }
+        },
+        "Polygon": {
+          "fields": {
+            "vertex": {
+              "rule": "repeated",
+              "type": ".lens.Polygon.Vertex",
+              "id": 1
+            },
+            "vertex_ordering": {
+              "type": ".lens.Polygon.VertexOrdering",
+              "id": 2
+            },
+            "coordinate_type": {
+              "type": ".lens.CoordinateType",
+              "id": 3
+            }
+          },
+          "nested": {
+            "Vertex": {
+              "fields": {
+                "x": {
+                  "type": "float",
+                  "id": 1
+                },
+                "y": {
+                  "type": "float",
+                  "id": 2
+                }
+              }
+            },
+            "VertexOrdering": {
+              "values": {
+                "VERTEX_ORDERING_UNSPECIFIED": 0,
+                "CLOCKWISE": 1,
+                "COUNTER_CLOCKWISE": 2
+              }
+            }
+          }
+        },
+        "CoordinateType": {
+          "values": {
+            "COORDINATE_TYPE_UNSPECIFIED": 0,
+            "NORMALIZED": 1,
+            "IMAGE": 2
+          }
+        },
+        "LensOverlayRequestId": {
+          "fields": {
+            "uuid": {
+              "type": "uint64",
+              "id": 1
+            },
+            "sequence_id": {
+              "type": "int32",
+              "id": 2
+            },
+            "image_sequence_id": {
+              "type": "int32",
+              "id": 3
+            },
+            "analytics_id": {
+              "type": "bytes",
+              "id": 4
+            },
+            "long_context_id": {
+              "type": "int32",
+              "id": 9
+            },
+            "routing_info": {
+              "type": ".lens.LensOverlayRoutingInfo",
+              "id": 6
+            },
+            "time_usec": {
+              "type": "uint64",
+              "id": 7
+            },
+            "media_type": {
+              "type": ".lens.LensOverlayRequestId.MediaType",
+              "id": 10
+            }
+          },
+          "nested": {
+            "MediaType": {
+              "values": {
+                "MEDIA_TYPE_DEFAULT_IMAGE": 0,
+                "MEDIA_TYPE_PDF": 1,
+                "MEDIA_TYPE_WEBPAGE": 2,
+                "MEDIA_TYPE_PDF_AND_IMAGE": 3,
+                "MEDIA_TYPE_WEBPAGE_AND_IMAGE": 4
+              }
+            }
+          }
+        },
+        "RequestType": {
+          "values": {
+            "REQUEST_TYPE_DEFAULT": 0,
+            "REQUEST_TYPE_PDF": 1,
+            "REQUEST_TYPE_EARLY_PARTIAL_PDF": 3,
+            "REQUEST_TYPE_WEBPAGE": 2
+          }
+        },
+        "LensOverlayRoutingInfo": {
+          "fields": {
+            "server_address": {
+              "type": "string",
+              "id": 1
+            },
+            "cell_address": {
+              "type": "string",
+              "id": 3
+            },
+            "blade_target": {
+              "type": "string",
+              "id": 2
+            }
+          }
+        },
+        "LensOverlaySelectionType": {
+          "values": {
+            "UNKNOWN_SELECTION_TYPE": 0,
+            "TAP_ON_EMPTY": 1,
+            "SELECT_TEXT_HIGHLIGHT": 3,
+            "REGION_SEARCH": 7,
+            "INJECTED_IMAGE": 10,
+            "TAP_ON_REGION_GLEAM": 15,
+            "MULTIMODAL_SEARCH": 18,
+            "SELECT_TRANSLATED_TEXT": 21,
+            "TAP_ON_OBJECT": 22,
+            "MULTIMODAL_SUGGEST_TYPEAHEAD": 25,
+            "MULTIMODAL_SUGGEST_ZERO_PREFIX": 26,
+            "MULTIMODAL_SELECTION_CLEAR": 27,
+            "TRANSLATE_CHIP": 52,
+            "SYMBOLIC_MATH_OBJECT": 53
+          }
+        },
+        "LensOverlayServerClusterInfoRequest": {
+          "fields": {
+            "enable_search_session_id": {
+              "type": "bool",
+              "id": 1
+            },
+            "surface": {
+              "type": ".lens.Surface",
+              "id": 2
+            },
+            "platform": {
+              "type": ".lens.Platform",
+              "id": 3
+            },
+            "rendering_context": {
+              "type": ".lens.RenderingContext",
+              "id": 4
+            }
+          }
+        },
+        "LensOverlayServerClusterInfoResponse": {
+          "fields": {
+            "server_session_id": {
+              "type": "string",
+              "id": 1
+            },
+            "search_session_id": {
+              "type": "string",
+              "id": 2
+            },
+            "routing_info": {
+              "type": ".lens.LensOverlayRoutingInfo",
+              "id": 3
+            }
+          }
+        },
+        "LensOverlayServerError": {
+          "fields": {
+            "error_type": {
+              "type": ".lens.LensOverlayServerError.ErrorType",
+              "id": 1
+            },
+            "missing_chunks_metadata": {
+              "type": ".lens.MissingChunksMetadata",
+              "id": 2
+            }
+          },
+          "nested": {
+            "ErrorType": {
+              "values": {
+                "UNKNOWN_TYPE": 0,
+                "MISSING_REQUEST": 1,
+                "MISSING_CHUNKS": 2
+              }
+            }
+          }
+        },
+        "MissingChunksMetadata": {
+          "fields": {
+            "has_chunk_metadata": {
+              "type": "bool",
+              "id": 1
+            },
+            "missing_chunk_ids": {
+              "rule": "repeated",
+              "type": "int64",
+              "id": 2
+            }
+          }
+        },
+        "LensOverlayServerRequest": {
+          "fields": {
+            "objects_request": {
+              "type": ".lens.LensOverlayObjectsRequest",
+              "id": 1
+            },
+            "interaction_request": {
+              "type": ".lens.LensOverlayInteractionRequest",
+              "id": 2
+            },
+            "client_logs": {
+              "type": ".lens.LensOverlayClientLogs",
+              "id": 3
+            }
+          }
+        },
+        "LensOverlayServerResponse": {
+          "fields": {
+            "error": {
+              "type": ".lens.LensOverlayServerError",
+              "id": 1
+            },
+            "objects_response": {
+              "type": ".lens.LensOverlayObjectsResponse",
+              "id": 2
+            },
+            "interaction_response": {
+              "type": ".lens.LensOverlayInteractionResponse",
+              "id": 3
+            }
+          }
+        },
+        "LensOverlayRequestContext": {
+          "fields": {
+            "request_id": {
+              "type": ".lens.LensOverlayRequestId",
+              "id": 3
+            },
+            "client_context": {
+              "type": ".lens.LensOverlayClientContext",
+              "id": 4
+            }
+          }
+        },
+        "ViewportRequestContext": {
+          "fields": {
+            "pdf_page_number": {
+              "type": "int32",
+              "id": 1
+            }
+          }
+        },
+        "LensOverlayObjectsRequest": {
+          "fields": {
+            "request_context": {
+              "type": ".lens.LensOverlayRequestContext",
+              "id": 1
+            },
+            "image_data": {
+              "type": ".lens.ImageData",
+              "id": 3
+            },
+            "payload": {
+              "type": ".lens.Payload",
+              "id": 4
+            },
+            "viewport_request_context": {
+              "type": ".lens.ViewportRequestContext",
+              "id": 5
+            }
+          }
+        },
+        "LensOverlayUploadChunkRequest": {
+          "fields": {
+            "request_context": {
+              "type": ".lens.LensOverlayRequestContext",
+              "id": 1
+            },
+            "debug_options": {
+              "type": ".lens.ChunkDebugOptions",
+              "id": 6
+            },
+            "chunk_id": {
+              "type": "int64",
+              "id": 3
+            },
+            "chunk_bytes": {
+              "type": "bytes",
+              "id": 4
+            }
+          }
+        },
+        "LensOverlayUploadChunkResponse": {
+          "fields": {
+            "debug_metadata": {
+              "type": ".lens.ChunkDebugMetadata",
+              "id": 2
+            }
+          }
+        },
+        "ChunkDebugOptions": {
+          "fields": {
+            "total_chunks": {
+              "type": "int64",
+              "id": 1
+            },
+            "query_chunks": {
+              "type": "bool",
+              "id": 2
+            }
+          }
+        },
+        "ChunkDebugMetadata": {
+          "fields": {
+            "remaining_chunks": {
+              "rule": "repeated",
+              "type": "int64",
+              "id": 1
+            }
+          }
+        },
+        "LensOverlayObjectsResponse": {
+          "fields": {
+            "overlay_objects": {
+              "rule": "repeated",
+              "type": ".lens.OverlayObject",
+              "id": 2
+            },
+            "text": {
+              "type": ".lens.Text",
+              "id": 3
+            },
+            "deep_gleams": {
+              "rule": "repeated",
+              "type": ".lens.DeepGleamData",
+              "id": 4
+            },
+            "cluster_info": {
+              "type": ".lens.LensOverlayClusterInfo",
+              "id": 7
+            }
+          }
+        },
+        "LensOverlayInteractionRequest": {
+          "fields": {
+            "request_context": {
+              "type": ".lens.LensOverlayRequestContext",
+              "id": 1
+            },
+            "interaction_request_metadata": {
+              "type": ".lens.LensOverlayInteractionRequestMetadata",
+              "id": 2
+            },
+            "image_crop": {
+              "type": ".lens.ImageCrop",
+              "id": 3
+            }
+          }
+        },
+        "LensOverlayInteractionResponse": {
+          "fields": {
+            "encoded_response": {
+              "type": "string",
+              "id": 3
+            },
+            "text": {
+              "type": ".lens.Text",
+              "id": 5
+            }
+          }
+        },
+        "Payload": {
+          "fields": {
+            "request_type": {
+              "type": ".lens.RequestType",
+              "id": 6
+            },
+            "image_data": {
+              "type": ".lens.ImageData",
+              "id": 2
+            },
+            "content_data": {
+              "type": "bytes",
+              "id": 3
+            },
+            "content_type": {
+              "type": "string",
+              "id": 4
+            },
+            "page_url": {
+              "type": "string",
+              "id": 5
+            },
+            "partial_pdf_document": {
+              "type": ".lens.LensOverlayDocument",
+              "id": 7
+            },
+            "compression_type": {
+              "type": ".lens.CompressionType",
+              "id": 8
+            },
+            "stored_chunk_options": {
+              "type": ".lens.StoredChunkOptions",
+              "id": 9
+            },
+            "content": {
+              "type": ".lens.Content",
+              "id": 10
+            }
+          }
+        },
+        "StoredChunkOptions": {
+          "fields": {
+            "read_stored_chunks": {
+              "type": "bool",
+              "id": 1
+            },
+            "total_stored_chunks": {
+              "type": "int64",
+              "id": 2
+            },
+            "is_read_retry": {
+              "type": "bool",
+              "id": 3
+            }
+          }
+        },
+        "Content": {
+          "fields": {
+            "webpage_url": {
+              "type": "string",
+              "id": 1
+            },
+            "webpage_title": {
+              "type": "string",
+              "id": 4
+            },
+            "content_data": {
+              "rule": "repeated",
+              "type": ".lens.ContentData",
+              "id": 2
+            },
+            "request_type": {
+              "type": ".lens.RequestType",
+              "id": 3
+            }
+          }
+        },
+        "ContentData": {
+          "fields": {
+            "content_type": {
+              "type": ".lens.ContentData.ContentType",
+              "id": 1
+            },
+            "data": {
+              "type": "bytes",
+              "id": 2
+            },
+            "compression_type": {
+              "type": ".lens.CompressionType",
+              "id": 3
+            },
+            "stored_chunk_options": {
+              "type": ".lens.StoredChunkOptions",
+              "id": 4
+            }
+          },
+          "nested": {
+            "ContentType": {
+              "values": {
+                "CONTENT_TYPE_UNSPECIFIED": 0,
+                "CONTENT_TYPE_PDF": 1,
+                "CONTENT_TYPE_INNER_TEXT": 2,
+                "CONTENT_TYPE_INNER_HTML": 3,
+                "CONTENT_TYPE_ANNOTATED_PAGE_CONTENT": 4,
+                "CONTENT_TYPE_EARLY_PARTIAL_PDF": 5
+              }
+            }
+          }
+        },
+        "CompressionType": {
+          "values": {
+            "UNCOMPRESSED": 0,
+            "ZSTD": 1
+          }
+        },
+        "StickinessSignals": {
+          "edition": "proto2",
+          "fields": {
+            "id_namespace": {
+              "type": ".lens.StickinessSignals.Namespace",
+              "id": 1
+            },
+            "interpretation": {
+              "type": ".lens.MessageSet",
+              "id": 28
+            },
+            "education_input_extension": {
+              "type": ".lens.EducationInputExtension",
+              "id": 121
+            }
+          },
+          "nested": {
+            "Namespace": {
+              "values": {
+                "UNKNOWN": 0,
+                "TRANSLATE_LITE": 56,
+                "EDUCATION_INPUT": 79
+              }
+            }
+          }
+        },
+        "EducationInputExtension": {
+          "edition": "proto2",
+          "fields": {
+            "math_solver_query": {
+              "type": ".lens.MathSolverQuery",
+              "id": 1
+            }
+          }
+        },
+        "Surface": {
+          "values": {
+            "SURFACE_UNSPECIFIED": 0,
+            "SURFACE_CHROMIUM": 4,
+            "SURFACE_LENS_OVERLAY": 42,
+            "SURFACE_CHROME_NTP": 47
+          }
+        },
+        "Text": {
+          "fields": {
+            "text_layout": {
+              "type": ".lens.TextLayout",
+              "id": 1
+            },
+            "content_language": {
+              "type": "string",
+              "id": 2
+            }
+          }
+        },
+        "TextLayout": {
+          "fields": {
+            "paragraphs": {
+              "rule": "repeated",
+              "type": ".lens.TextLayout.Paragraph",
+              "id": 1
+            }
+          },
+          "nested": {
+            "Word": {
+              "oneofs": {
+                "_text_separator": {
+                  "oneof": ["text_separator"]
+                }
+              },
+              "fields": {
+                "id": {
+                  "type": ".lens.TextEntityIdentifier",
+                  "id": 1
+                },
+                "plain_text": {
+                  "type": "string",
+                  "id": 2
+                },
+                "text_separator": {
+                  "type": "string",
+                  "id": 3
+                },
+                "geometry": {
+                  "type": ".lens.Geometry",
+                  "id": 4
+                },
+                "type": {
+                  "type": ".lens.TextLayout.Word.Type",
+                  "id": 5
+                },
+                "formula_metadata": {
+                  "type": ".lens.TextLayout.Word.FormulaMetadata",
+                  "id": 6
+                }
+              },
+              "nested": {
+                "FormulaMetadata": {
+                  "fields": {
+                    "latex": {
+                      "type": "string",
+                      "id": 1
+                    }
+                  }
+                },
+                "Type": {
+                  "values": {
+                    "TEXT": 0,
+                    "FORMULA": 1
+                  }
+                }
+              }
+            },
+            "Line": {
+              "fields": {
+                "words": {
+                  "rule": "repeated",
+                  "type": ".lens.TextLayout.Word",
+                  "id": 1
+                },
+                "geometry": {
+                  "type": ".lens.Geometry",
+                  "id": 2
+                }
+              }
+            },
+            "Paragraph": {
+              "fields": {
+                "id": {
+                  "type": ".lens.TextEntityIdentifier",
+                  "id": 1
+                },
+                "lines": {
+                  "rule": "repeated",
+                  "type": ".lens.TextLayout.Line",
+                  "id": 2
+                },
+                "geometry": {
+                  "type": ".lens.Geometry",
+                  "id": 3
+                },
+                "writing_direction": {
+                  "type": ".lens.WritingDirection",
+                  "id": 4
+                },
+                "content_language": {
+                  "type": "string",
+                  "id": 5
+                }
+              }
+            }
+          }
+        },
+        "TextEntityIdentifier": {
+          "fields": {
+            "id": {
+              "type": "int64",
+              "id": 1
+            }
+          }
+        },
+        "WritingDirection": {
+          "values": {
+            "DEFAULT_WRITING_DIRECTION_LEFT_TO_RIGHT": 0,
+            "WRITING_DIRECTION_RIGHT_TO_LEFT": 1,
+            "WRITING_DIRECTION_TOP_TO_BOTTOM": 2
+          }
+        },
+        "Alignment": {
+          "values": {
+            "DEFAULT_LEFT_ALIGNED": 0,
+            "RIGHT_ALIGNED": 1,
+            "CENTER_ALIGNED": 2
+          }
+        },
+        "TextQuery": {
+          "fields": {
+            "query": {
+              "type": "string",
+              "id": 1
+            },
+            "is_primary": {
+              "type": "bool",
+              "id": 2
+            }
+          }
+        },
+        "TranslateStickinessSignals": {
+          "fields": {
+            "translate_suppress_echo_for_sticky": {
+              "type": "bool",
+              "id": 1
+            }
+          }
+        },
+        "LensOverlayVideoContextInputParams": {
+          "fields": {
+            "url": {
+              "type": "string",
+              "id": 1
+            }
+          }
+        },
+        "LensOverlayVideoParams": {
+          "fields": {
+            "video_context_input_params": {
+              "type": ".lens.LensOverlayVideoContextInputParams",
+              "id": 1
+            }
+          }
+        },
+        "LensOverlayVisualInputType": {
+          "values": {
+            "VISUAL_INPUT_TYPE_UNKNOWN": 0,
+            "VISUAL_INPUT_TYPE_PDF": 4,
+            "VISUAL_INPUT_TYPE_WEBPAGE": 5
+          }
+        },
+        "LensOverlayVisualSearchInteractionData": {
+          "fields": {
+            "interaction_type": {
+              "type": ".lens.LensOverlayInteractionRequestMetadata.Type",
+              "id": 1
+            },
+            "zoomed_crop": {
+              "type": ".lens.ZoomedCrop",
+              "id": 7
+            },
+            "object_id": {
+              "type": "string",
+              "id": 3
+            },
+            "text_select": {
+              "type": ".lens.LensOverlayVisualSearchInteractionData.TextSelect",
+              "id": 4
+            },
+            "log_data": {
+              "type": ".lens.LensOverlayVisualSearchInteractionLogData",
+              "id": 5
+            }
+          },
+          "nested": {
+            "TextSelect": {
+              "fields": {
+                "selected_texts": {
+                  "type": "string",
+                  "id": 5
+                }
+              }
+            }
+          }
+        },
+        "LensOverlayVisualSearchInteractionLogData": {
+          "fields": {
+            "filter_data": {
+              "type": ".lens.FilterData",
+              "id": 1
+            },
+            "user_selection_data": {
+              "type": ".lens.UserSelectionData",
+              "id": 2
+            },
+            "is_parent_query": {
+              "type": "bool",
+              "id": 3
+            },
+            "client_platform": {
+              "type": ".lens.ClientPlatform",
+              "id": 4
+            }
+          }
+        },
+        "FilterData": {
+          "fields": {
+            "filter_type": {
+              "type": ".lens.LensOverlayFilterType",
+              "id": 1
+            }
+          }
+        },
+        "UserSelectionData": {
+          "fields": {
+            "selection_type": {
+              "type": ".lens.LensOverlaySelectionType",
+              "id": 1
+            }
+          }
+        }
+      }
+    }
+  }
+}

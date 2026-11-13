@@ -1,0 +1,813 @@
+@import 'tailwindcss';
+@import 'tw-animate-css';
+@theme inline {
+  @keyframes accordion-down {
+    from {
+      height: 0;
+    }
+    to {
+      height: var(--radix-accordion-content-height, var(--accordion-panel-height, auto));
+    }
+  }
+
+  @keyframes accordion-up {
+    from {
+      height: var(--radix-accordion-content-height, var(--accordion-panel-height, auto));
+    }
+    to {
+      height: 0;
+    }
+  }
+}
+
+@custom-variant data-open {
+  &:where([data-state='open']),
+  &:where([data-open]:not([data-open='false'])) {
+    @slot;
+  }
+}
+
+@custom-variant data-closed {
+  &:where([data-state='closed']),
+  &:where([data-closed]:not([data-closed='false'])) {
+    @slot;
+  }
+}
+
+@custom-variant data-checked {
+  &:where([data-state='checked']),
+  &:where([data-checked]:not([data-checked='false'])) {
+    @slot;
+  }
+}
+
+@custom-variant data-unchecked {
+  &:where([data-state='unchecked']),
+  &:where([data-unchecked]:not([data-unchecked='false'])) {
+    @slot;
+  }
+}
+
+@custom-variant data-selected {
+  &:where([data-selected='true']) {
+    @slot;
+  }
+}
+
+@custom-variant data-disabled {
+  &:where([data-disabled='true']),
+  &:where([data-disabled]:not([data-disabled='false'])) {
+    @slot;
+  }
+}
+
+@custom-variant data-active {
+  &:where([data-state='active']),
+  &:where([data-active]:not([data-active='false'])) {
+    @slot;
+  }
+}
+
+@custom-variant data-horizontal {
+  &:where([data-orientation='horizontal']) {
+    @slot;
+  }
+}
+
+@custom-variant data-vertical {
+  &:where([data-orientation='vertical']) {
+    @slot;
+  }
+}
+
+@utility no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+
+  &::-webkit-scrollbar {
+    display: none;
+  }
+}
+
+@property --scroll-fade-t {
+  syntax: '<length-percentage>';
+  inherits: false;
+  initial-value: 0px;
+}
+@property --scroll-fade-b {
+  syntax: '<length-percentage>';
+  inherits: false;
+  initial-value: 0px;
+}
+@property --scroll-fade-s {
+  syntax: '<length-percentage>';
+  inherits: false;
+  initial-value: 0px;
+}
+@property --scroll-fade-e {
+  syntax: '<length-percentage>';
+  inherits: false;
+  initial-value: 0px;
+}
+@property --scroll-fade-mask {
+  syntax: '*';
+  inherits: false;
+}
+
+@theme inline {
+  @keyframes scroll-fade-reveal-t {
+    from {
+      --scroll-fade-t: 0px;
+    }
+    to {
+      --scroll-fade-t: var(
+        --_scroll-fade-size-t,
+        var(--scroll-fade-size, min(12%, calc(var(--spacing) * 10)))
+      );
+    }
+  }
+  @keyframes scroll-fade-reveal-b {
+    from {
+      --scroll-fade-b: var(
+        --_scroll-fade-size-b,
+        var(--scroll-fade-size, min(12%, calc(var(--spacing) * 10)))
+      );
+    }
+    to {
+      --scroll-fade-b: 0px;
+    }
+  }
+  @keyframes scroll-fade-reveal-s {
+    from {
+      --scroll-fade-s: 0px;
+    }
+    to {
+      --scroll-fade-s: var(
+        --_scroll-fade-size-s,
+        var(--scroll-fade-size, min(12%, calc(var(--spacing) * 10)))
+      );
+    }
+  }
+  @keyframes scroll-fade-reveal-e {
+    from {
+      --scroll-fade-e: var(
+        --_scroll-fade-size-e,
+        var(--scroll-fade-size, min(12%, calc(var(--spacing) * 10)))
+      );
+    }
+    to {
+      --scroll-fade-e: 0px;
+    }
+  }
+}
+
+@utility scroll-fade {
+  --_scroll-fade-size-t: var(
+    --scroll-fade-t-size,
+    var(--scroll-fade-size, min(12%, calc(var(--spacing) * 10)))
+  );
+  --_scroll-fade-size-b: var(
+    --scroll-fade-b-size,
+    var(--scroll-fade-size, min(12%, calc(var(--spacing) * 10)))
+  );
+  --scroll-fade-block: linear-gradient(
+    to bottom,
+    transparent 0,
+    #000 var(--scroll-fade-t, 0px),
+    #000 calc(100% - var(--scroll-fade-b, 0px)),
+    transparent 100%
+  );
+  -webkit-mask-image: var(--scroll-fade-mask, var(--scroll-fade-block));
+  mask-image: var(--scroll-fade-mask, var(--scroll-fade-block));
+  -webkit-mask-composite: source-in;
+  mask-composite: intersect;
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+
+  @supports (animation-timeline: scroll()) {
+    animation:
+      scroll-fade-reveal-t 1ms ease-in-out,
+      scroll-fade-reveal-b 1ms ease-in-out;
+    animation-timeline: scroll(self y), scroll(self y);
+    animation-range:
+      0 var(--scroll-fade-reveal, calc(var(--spacing) * 24)),
+      calc(100% - var(--scroll-fade-reveal, calc(var(--spacing) * 24))) 100%;
+    animation-fill-mode: both;
+  }
+
+  @supports not (animation-timeline: scroll()) {
+    --scroll-fade-t: var(--_scroll-fade-size-t);
+    --scroll-fade-b: var(--_scroll-fade-size-b);
+  }
+}
+
+@utility scroll-fade-y {
+  --_scroll-fade-size-t: var(
+    --scroll-fade-t-size,
+    var(--scroll-fade-size, min(12%, calc(var(--spacing) * 10)))
+  );
+  --_scroll-fade-size-b: var(
+    --scroll-fade-b-size,
+    var(--scroll-fade-size, min(12%, calc(var(--spacing) * 10)))
+  );
+  --scroll-fade-block: linear-gradient(
+    to bottom,
+    transparent 0,
+    #000 var(--scroll-fade-t, 0px),
+    #000 calc(100% - var(--scroll-fade-b, 0px)),
+    transparent 100%
+  );
+  -webkit-mask-image: var(--scroll-fade-mask, var(--scroll-fade-block));
+  mask-image: var(--scroll-fade-mask, var(--scroll-fade-block));
+  -webkit-mask-composite: source-in;
+  mask-composite: intersect;
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+
+  @supports (animation-timeline: scroll()) {
+    animation:
+      scroll-fade-reveal-t 1ms ease-in-out,
+      scroll-fade-reveal-b 1ms ease-in-out;
+    animation-timeline: scroll(self y), scroll(self y);
+    animation-range:
+      0 var(--scroll-fade-reveal, calc(var(--spacing) * 24)),
+      calc(100% - var(--scroll-fade-reveal, calc(var(--spacing) * 24))) 100%;
+    animation-fill-mode: both;
+  }
+
+  @supports not (animation-timeline: scroll()) {
+    --scroll-fade-t: var(--_scroll-fade-size-t);
+    --scroll-fade-b: var(--_scroll-fade-size-b);
+  }
+}
+
+@utility scroll-fade-x {
+  --_scroll-fade-size-s: var(
+    --scroll-fade-s-size,
+    var(--scroll-fade-size, min(12%, calc(var(--spacing) * 10)))
+  );
+  --_scroll-fade-size-e: var(
+    --scroll-fade-e-size,
+    var(--scroll-fade-size, min(12%, calc(var(--spacing) * 10)))
+  );
+  --scroll-fade-inline: linear-gradient(
+    to right,
+    transparent 0,
+    #000 var(--scroll-fade-s, 0px),
+    #000 calc(100% - var(--scroll-fade-e, 0px)),
+    transparent 100%
+  );
+  &:where([dir='rtl'], [dir='rtl'] *) {
+    --scroll-fade-inline: linear-gradient(
+      to left,
+      transparent 0,
+      #000 var(--scroll-fade-s, 0px),
+      #000 calc(100% - var(--scroll-fade-e, 0px)),
+      transparent 100%
+    );
+  }
+  -webkit-mask-image: var(--scroll-fade-mask, var(--scroll-fade-inline));
+  mask-image: var(--scroll-fade-mask, var(--scroll-fade-inline));
+  -webkit-mask-composite: source-in;
+  mask-composite: intersect;
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+
+  @supports (animation-timeline: scroll()) {
+    animation:
+      scroll-fade-reveal-s 1ms ease-in-out,
+      scroll-fade-reveal-e 1ms ease-in-out;
+    animation-timeline: scroll(self inline), scroll(self inline);
+    animation-range:
+      0 var(--scroll-fade-reveal, calc(var(--spacing) * 24)),
+      calc(100% - var(--scroll-fade-reveal, calc(var(--spacing) * 24))) 100%;
+    animation-fill-mode: both;
+  }
+
+  @supports not (animation-timeline: scroll()) {
+    --scroll-fade-s: var(--_scroll-fade-size-s);
+    --scroll-fade-e: var(--_scroll-fade-size-e);
+  }
+}
+
+@utility scroll-fade-t {
+  --_scroll-fade-size-t: var(
+    --scroll-fade-t-size,
+    var(--scroll-fade-size, min(12%, calc(var(--spacing) * 10)))
+  );
+  --scroll-fade-mask: linear-gradient(
+    to bottom,
+    transparent 0,
+    #000 var(--scroll-fade-t, 0px),
+    #000 100%
+  );
+  -webkit-mask-image: var(--scroll-fade-mask);
+  mask-image: var(--scroll-fade-mask);
+  -webkit-mask-composite: source-in;
+  mask-composite: intersect;
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+
+  @supports (animation-timeline: scroll()) {
+    animation: scroll-fade-reveal-t 1ms ease-in-out;
+    animation-timeline: scroll(self y);
+    animation-range: 0 var(--scroll-fade-reveal, calc(var(--spacing) * 24));
+    animation-fill-mode: both;
+  }
+
+  @supports not (animation-timeline: scroll()) {
+    --scroll-fade-t: var(--_scroll-fade-size-t);
+  }
+}
+
+@utility scroll-fade-b {
+  --_scroll-fade-size-b: var(
+    --scroll-fade-b-size,
+    var(--scroll-fade-size, min(12%, calc(var(--spacing) * 10)))
+  );
+  --scroll-fade-mask: linear-gradient(
+    to bottom,
+    #000 0,
+    #000 calc(100% - var(--scroll-fade-b, 0px)),
+    transparent 100%
+  );
+  -webkit-mask-image: var(--scroll-fade-mask);
+  mask-image: var(--scroll-fade-mask);
+  -webkit-mask-composite: source-in;
+  mask-composite: intersect;
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+
+  @supports (animation-timeline: scroll()) {
+    animation: scroll-fade-reveal-b 1ms ease-in-out;
+    animation-timeline: scroll(self y);
+    animation-range: calc(100% - var(--scroll-fade-reveal, calc(var(--spacing) * 24))) 100%;
+    animation-fill-mode: both;
+  }
+
+  @supports not (animation-timeline: scroll()) {
+    --scroll-fade-b: var(--_scroll-fade-size-b);
+  }
+}
+
+@utility scroll-fade-l {
+  --_scroll-fade-size-s: var(
+    --scroll-fade-s-size,
+    var(--scroll-fade-size, min(12%, calc(var(--spacing) * 10)))
+  );
+  --scroll-fade-mask: linear-gradient(
+    to right,
+    transparent 0,
+    #000 var(--scroll-fade-s, 0px),
+    #000 100%
+  );
+  -webkit-mask-image: var(--scroll-fade-mask);
+  mask-image: var(--scroll-fade-mask);
+  -webkit-mask-composite: source-in;
+  mask-composite: intersect;
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+
+  @supports (animation-timeline: scroll()) {
+    animation: scroll-fade-reveal-s 1ms ease-in-out;
+    animation-timeline: scroll(self x);
+    animation-range: 0 var(--scroll-fade-reveal, calc(var(--spacing) * 24));
+    animation-fill-mode: both;
+  }
+
+  @supports not (animation-timeline: scroll()) {
+    --scroll-fade-s: var(--_scroll-fade-size-s);
+  }
+}
+
+@utility scroll-fade-r {
+  --_scroll-fade-size-e: var(
+    --scroll-fade-e-size,
+    var(--scroll-fade-size, min(12%, calc(var(--spacing) * 10)))
+  );
+  --scroll-fade-mask: linear-gradient(
+    to right,
+    #000 0,
+    #000 calc(100% - var(--scroll-fade-e, 0px)),
+    transparent 100%
+  );
+  -webkit-mask-image: var(--scroll-fade-mask);
+  mask-image: var(--scroll-fade-mask);
+  -webkit-mask-composite: source-in;
+  mask-composite: intersect;
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+
+  @supports (animation-timeline: scroll()) {
+    animation: scroll-fade-reveal-e 1ms ease-in-out;
+    animation-timeline: scroll(self x);
+    animation-range: calc(100% - var(--scroll-fade-reveal, calc(var(--spacing) * 24))) 100%;
+    animation-fill-mode: both;
+  }
+
+  @supports not (animation-timeline: scroll()) {
+    --scroll-fade-e: var(--_scroll-fade-size-e);
+  }
+}
+
+@utility scroll-fade-s {
+  --_scroll-fade-size-s: var(
+    --scroll-fade-s-size,
+    var(--scroll-fade-size, min(12%, calc(var(--spacing) * 10)))
+  );
+  --scroll-fade-mask: linear-gradient(
+    to right,
+    transparent 0,
+    #000 var(--scroll-fade-s, 0px),
+    #000 100%
+  );
+  &:where([dir='rtl'], [dir='rtl'] *) {
+    --scroll-fade-mask: linear-gradient(
+      to left,
+      transparent 0,
+      #000 var(--scroll-fade-s, 0px),
+      #000 100%
+    );
+  }
+  -webkit-mask-image: var(--scroll-fade-mask);
+  mask-image: var(--scroll-fade-mask);
+  -webkit-mask-composite: source-in;
+  mask-composite: intersect;
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+
+  @supports (animation-timeline: scroll()) {
+    animation: scroll-fade-reveal-s 1ms ease-in-out;
+    animation-timeline: scroll(self inline);
+    animation-range: 0 var(--scroll-fade-reveal, calc(var(--spacing) * 24));
+    animation-fill-mode: both;
+  }
+
+  @supports not (animation-timeline: scroll()) {
+    --scroll-fade-s: var(--_scroll-fade-size-s);
+  }
+}
+
+@utility scroll-fade-e {
+  --_scroll-fade-size-e: var(
+    --scroll-fade-e-size,
+    var(--scroll-fade-size, min(12%, calc(var(--spacing) * 10)))
+  );
+  --scroll-fade-mask: linear-gradient(
+    to right,
+    #000 0,
+    #000 calc(100% - var(--scroll-fade-e, 0px)),
+    transparent 100%
+  );
+  &:where([dir='rtl'], [dir='rtl'] *) {
+    --scroll-fade-mask: linear-gradient(
+      to left,
+      #000 0,
+      #000 calc(100% - var(--scroll-fade-e, 0px)),
+      transparent 100%
+    );
+  }
+  -webkit-mask-image: var(--scroll-fade-mask);
+  mask-image: var(--scroll-fade-mask);
+  -webkit-mask-composite: source-in;
+  mask-composite: intersect;
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+
+  @supports (animation-timeline: scroll()) {
+    animation: scroll-fade-reveal-e 1ms ease-in-out;
+    animation-timeline: scroll(self inline);
+    animation-range: calc(100% - var(--scroll-fade-reveal, calc(var(--spacing) * 24))) 100%;
+    animation-fill-mode: both;
+  }
+
+  @supports not (animation-timeline: scroll()) {
+    --scroll-fade-e: var(--_scroll-fade-size-e);
+  }
+}
+
+@utility scroll-fade-* {
+  --scroll-fade-size: calc(var(--spacing) * --value(integer));
+  --scroll-fade-size: --value([length], [percentage]);
+}
+
+@utility scroll-fade-t-* {
+  --scroll-fade-t-size: calc(var(--spacing) * --value(integer));
+  --scroll-fade-t-size: --value([length], [percentage]);
+}
+
+@utility scroll-fade-b-* {
+  --scroll-fade-b-size: calc(var(--spacing) * --value(integer));
+  --scroll-fade-b-size: --value([length], [percentage]);
+}
+
+@utility scroll-fade-s-* {
+  --scroll-fade-s-size: calc(var(--spacing) * --value(integer));
+  --scroll-fade-s-size: --value([length], [percentage]);
+}
+
+@utility scroll-fade-e-* {
+  --scroll-fade-e-size: calc(var(--spacing) * --value(integer));
+  --scroll-fade-e-size: --value([length], [percentage]);
+}
+
+@utility scroll-fade-none {
+  --scroll-fade-mask: none;
+}
+
+@property --shimmer-angle {
+  syntax: '<angle>';
+  inherits: true;
+  initial-value: 20deg;
+}
+@property --shimmer-image {
+  syntax: '*';
+  inherits: false;
+}
+@property --shimmer-text-fill {
+  syntax: '*';
+  inherits: false;
+}
+
+@theme inline {
+  @keyframes tw-shimmer {
+    from {
+      background-position: 100% 0;
+    }
+    to {
+      background-position: 0 0;
+    }
+  }
+}
+
+@utility shimmer {
+  --_spread: var(--shimmer-spread, calc(3ch + 40px));
+  --_base: currentColor;
+  --_highlight: var(--shimmer-color, oklch(from currentColor l c h / calc(alpha* 0.2)));
+
+  background-image: var(
+    --shimmer-image,
+    linear-gradient(
+      calc(90deg + var(--shimmer-angle)),
+      var(--_base) calc(50% - var(--_spread)),
+      color-mix(in oklch, var(--_highlight), var(--_base) 50%) calc(50% - var(--_spread) * 0.5),
+      var(--_highlight) 50%,
+      color-mix(in oklch, var(--_highlight), var(--_base) 50%) calc(50% + var(--_spread) * 0.5),
+      var(--_base) calc(50% + var(--_spread))
+    )
+  );
+  background-repeat: no-repeat;
+  background-size: calc(200% + var(--_spread) * 2) 100%;
+  background-position: 0 0;
+  background-clip: text;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: var(--shimmer-text-fill, transparent);
+  animation: tw-shimmer var(--shimmer-duration, 2s) linear infinite;
+
+  @variant dark {
+    --_highlight: var(
+      --shimmer-color,
+      oklch(from currentColor max(0.8, calc(l + 0.4)) c h / calc(alpha + 0.4))
+    );
+  }
+
+  &:where([dir='rtl'], [dir='rtl'] *) {
+    animation-direction: reverse;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    animation: none;
+    background-image: none;
+    -webkit-text-fill-color: currentColor;
+  }
+}
+
+@utility shimmer-once {
+  animation-iteration-count: 1;
+}
+
+@utility shimmer-reverse {
+  animation-direction: reverse;
+}
+
+@utility shimmer-none {
+  --shimmer-image: none;
+  --shimmer-text-fill: currentColor;
+}
+
+@utility shimmer-color-* {
+  --shimmer-color: --value(--color, [color]);
+  --shimmer-color: color-mix(
+    in oklch,
+    --value(--color, [color]) calc(--modifier(integer) * 1%),
+    transparent
+  );
+}
+
+@utility shimmer-duration-* {
+  --shimmer-duration: calc(--value(integer) * 1ms);
+}
+
+@utility shimmer-spread-* {
+  --shimmer-spread: calc(var(--spacing) * --value(integer));
+  --shimmer-spread: --value([length], [percentage]);
+}
+
+@utility shimmer-angle-* {
+  --shimmer-angle: calc(--value(integer) * 1deg);
+}
+
+/* Unlayered, so it still wins over other utilities on a plain .shimmer element. */
+@media (prefers-reduced-motion: reduce) {
+  .shimmer {
+    animation: none;
+    background-image: none;
+    -webkit-text-fill-color: currentColor;
+  }
+}
+
+@import '@fontsource-variable/geist';
+
+@custom-variant dark (&:is(.dark *));
+
+:root {
+  --background: oklch(1 0 0);
+  --foreground: oklch(0.141 0.005 285.823);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.141 0.005 285.823);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.141 0.005 285.823);
+  --primary: oklch(0.21 0.006 285.885);
+  --primary-foreground: oklch(0.985 0 0);
+  --secondary: oklch(0.967 0.001 286.375);
+  --secondary-foreground: oklch(0.21 0.006 285.885);
+  --muted: oklch(0.967 0.001 286.375);
+  --muted-foreground: oklch(0.552 0.016 285.938);
+  --accent: oklch(0.967 0.001 286.375);
+  --accent-foreground: oklch(0.21 0.006 285.885);
+  --destructive: oklch(0.577 0.245 27.325);
+  --success: oklch(0.5 0.13 150);
+  --info: oklch(0.55 0.13 250);
+  --warning: oklch(0.55 0.13 65);
+  --card-shadow:
+    0 4px 6px -1px rgb(0 0 0 / 0.08), 0 2px 4px -2px rgb(0 0 0 / 0.08),
+    0 0 0 1px oklch(0.141 0.005 285.823 / 0.05);
+  --tint-violet: oklch(0.94 0.035 290);
+  --tint-violet-foreground: oklch(0.42 0.13 290);
+  --tint-teal: oklch(0.94 0.035 175);
+  --tint-teal-foreground: oklch(0.4 0.08 175);
+  --tint-amber: oklch(0.94 0.035 45);
+  --tint-amber-foreground: oklch(0.45 0.13 45);
+  --tint-slate: oklch(0.95 0.003 286);
+  --tint-slate-foreground: oklch(0.45 0.016 286);
+  --chart-1: #2a78d6;
+  --chart-2: #eb6834;
+  --chart-3: #1baf7a;
+  --chart-4: #8a8a84;
+  --border: oklch(0.92 0.004 286.32);
+  --input: oklch(0.92 0.004 286.32);
+  --ring: oklch(0.705 0.015 286.067);
+  --radius: 0.625rem;
+  --sidebar: oklch(0.985 0 0);
+  --sidebar-foreground: oklch(0.141 0.005 285.823);
+  --sidebar-primary: oklch(0.21 0.006 285.885);
+  --sidebar-primary-foreground: oklch(0.985 0 0);
+  --sidebar-accent: oklch(0.94 0.002 286.375);
+  --sidebar-accent-foreground: oklch(0.21 0.006 285.885);
+  --sidebar-border: oklch(0.92 0.004 286.32);
+  --sidebar-ring: oklch(0.705 0.015 286.067);
+}
+
+.dark {
+  --background: oklch(0.141 0.005 285.823);
+  --foreground: oklch(0.985 0 0);
+  --card: oklch(0.21 0.006 285.885);
+  --card-foreground: oklch(0.985 0 0);
+  --popover: oklch(0.21 0.006 285.885);
+  --popover-foreground: oklch(0.985 0 0);
+  --primary: oklch(0.92 0.004 286.32);
+  --primary-foreground: oklch(0.21 0.006 285.885);
+  --secondary: oklch(0.274 0.006 286.033);
+  --secondary-foreground: oklch(0.985 0 0);
+  --muted: oklch(0.274 0.006 286.033);
+  --muted-foreground: oklch(0.705 0.015 286.067);
+  --accent: oklch(0.274 0.006 286.033);
+  --accent-foreground: oklch(0.985 0 0);
+  --destructive: oklch(0.704 0.191 22.216);
+  --success: oklch(0.78 0.14 150);
+  --info: oklch(0.75 0.09 250);
+  --warning: oklch(0.82 0.13 75);
+  --card-shadow:
+    0 4px 6px -1px rgb(0 0 0 / 0.3), 0 2px 4px -2px rgb(0 0 0 / 0.3), 0 0 0 1px oklch(1 0 0 / 0.06);
+  --tint-violet: oklch(0.32 0.06 290);
+  --tint-violet-foreground: oklch(0.86 0.07 290);
+  --tint-teal: oklch(0.31 0.04 175);
+  --tint-teal-foreground: oklch(0.86 0.06 175);
+  --tint-amber: oklch(0.32 0.05 45);
+  --tint-amber-foreground: oklch(0.87 0.07 45);
+  --tint-slate: oklch(0.274 0.006 286);
+  --tint-slate-foreground: oklch(0.75 0.015 286);
+  --chart-1: #3987e5;
+  --chart-2: #d95926;
+  --chart-3: #199e70;
+  --chart-4: #7a7a74;
+  --border: oklch(1 0 0 / 10%);
+  --input: oklch(1 0 0 / 15%);
+  --ring: oklch(0.552 0.016 285.938);
+  --sidebar: oklch(0.21 0.006 285.885);
+  --sidebar-foreground: oklch(0.985 0 0);
+  --sidebar-primary: oklch(0.92 0.004 286.32);
+  --sidebar-primary-foreground: oklch(0.21 0.006 285.885);
+  --sidebar-accent: oklch(0.274 0.006 286.033);
+  --sidebar-accent-foreground: oklch(0.985 0 0);
+  --sidebar-border: oklch(1 0 0 / 10%);
+  --sidebar-ring: oklch(0.552 0.016 285.938);
+}
+
+@theme inline {
+  --font-sans: 'Geist Variable', system-ui, sans-serif;
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-success: var(--success);
+  --color-info: var(--info);
+  --color-warning: var(--warning);
+  --shadow-card: var(--card-shadow);
+  --color-tint-violet: var(--tint-violet);
+  --color-tint-violet-foreground: var(--tint-violet-foreground);
+  --color-tint-teal: var(--tint-teal);
+  --color-tint-teal-foreground: var(--tint-teal-foreground);
+  --color-tint-amber: var(--tint-amber);
+  --color-tint-amber-foreground: var(--tint-amber-foreground);
+  --color-tint-slate: var(--tint-slate);
+  --color-tint-slate-foreground: var(--tint-slate-foreground);
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+  --radius-sm: calc(var(--radius) * 0.6);
+  --radius-md: calc(var(--radius) * 0.8);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) * 1.4);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  html {
+    @apply font-sans antialiased;
+  }
+  body {
+    @apply bg-sidebar text-foreground;
+  }
+  button:not(:disabled),
+  [role='button']:not(:disabled) {
+    cursor: pointer;
+  }
+}
+
+.app-drag {
+  -webkit-app-region: drag;
+}
+
+.app-no-drag {
+  -webkit-app-region: no-drag;
+}
+
+@keyframes download-sweep {
+  from {
+    translate: -100% 0;
+  }
+  to {
+    translate: 270% 0;
+  }
+}
+
+@utility progress-sweep {
+  width: 38% !important;
+  animation: download-sweep 1.25s ease-in-out infinite;
+}

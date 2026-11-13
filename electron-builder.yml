@@ -1,0 +1,35 @@
+appId: dev.wenbu.app
+productName: Wenbu
+directories:
+  buildResources: build
+files:
+  - out/**
+  - package.json
+extraResources:
+  - from: resources/native/${platform}-${arch}
+    to: native/${platform}-${arch}
+  - from: resources/samples
+    to: samples
+  - from: resources/fonts
+    to: fonts
+  - from: resources/python
+    to: python
+    filter:
+      - '**/*'
+      - '!**/__pycache__/**'
+      - '!**/test_*.py'
+      - '!**/.pytest_cache/**'
+win:
+  target: nsis
+  executableName: wenbu
+nsis:
+  artifactName: ${name}-${version}-setup.${ext}
+  oneClick: false
+  allowToChangeInstallationDirectory: true
+electronFuses:
+  runAsNode: false
+  enableCookieEncryption: true
+  enableNodeOptionsEnvironmentVariable: false
+  enableNodeCliInspectArguments: false
+  enableEmbeddedAsarIntegrityValidation: true
+  onlyLoadAppFromAsar: true

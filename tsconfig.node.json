@@ -1,0 +1,15 @@
+{
+  "extends": "./tsconfig.base.json",
+  "include": [
+    "src/contract/**/*.ts",
+    "src/core/**/*.ts",
+    "src/main/**/*.ts",
+    "electron.vite.config.ts",
+    "vite.config.ts"
+  ],
+  "compilerOptions": {
+    "lib": ["ES2024"],
+    "types": ["node", "electron", "electron-vite/node"],
+    "tsBuildInfoFile": "./node_modules/.cache/tsconfig.node.tsbuildinfo"
+  }
+}

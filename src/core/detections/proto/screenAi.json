@@ -1,0 +1,209 @@
+{
+  "nested": {
+    "chrome_screen_ai": {
+      "options": {
+        "features": {
+          "field_presence": "IMPLICIT"
+        }
+      },
+      "nested": {
+        "Rect": {
+          "edition": "2023",
+          "fields": {
+            "x": {
+              "type": "int32",
+              "id": 1
+            },
+            "y": {
+              "type": "int32",
+              "id": 2
+            },
+            "width": {
+              "type": "int32",
+              "id": 3
+            },
+            "height": {
+              "type": "int32",
+              "id": 4
+            },
+            "angle": {
+              "type": "float",
+              "id": 5
+            }
+          }
+        },
+        "LineBox": {
+          "edition": "2023",
+          "fields": {
+            "words": {
+              "rule": "repeated",
+              "type": ".chrome_screen_ai.WordBox",
+              "id": 1
+            },
+            "bounding_box": {
+              "type": ".chrome_screen_ai.Rect",
+              "id": 2
+            },
+            "utf8_string": {
+              "type": "string",
+              "id": 3
+            },
+            "language": {
+              "type": "string",
+              "id": 4
+            },
+            "block_id": {
+              "type": "int32",
+              "id": 5
+            },
+            "direction": {
+              "type": ".chrome_screen_ai.Direction",
+              "id": 7
+            },
+            "content_type": {
+              "type": ".chrome_screen_ai.ContentType",
+              "id": 8
+            },
+            "confidence": {
+              "type": "float",
+              "id": 10
+            },
+            "paragraph_id": {
+              "type": "int32",
+              "id": 11
+            }
+          }
+        },
+        "WordBox": {
+          "edition": "2023",
+          "fields": {
+            "symbols": {
+              "rule": "repeated",
+              "type": ".chrome_screen_ai.SymbolBox",
+              "id": 1
+            },
+            "bounding_box": {
+              "type": ".chrome_screen_ai.Rect",
+              "id": 2
+            },
+            "utf8_string": {
+              "type": "string",
+              "id": 3
+            },
+            "language": {
+              "type": "string",
+              "id": 5
+            },
+            "has_space_after": {
+              "type": "bool",
+              "id": 6,
+              "options": {
+                "deprecated": true
+              }
+            },
+            "estimate_color_success": {
+              "type": "bool",
+              "id": 7
+            },
+            "foreground_gray_value": {
+              "type": "int32",
+              "id": 8
+            },
+            "background_gray_value": {
+              "type": "int32",
+              "id": 9
+            },
+            "foreground_rgb_value": {
+              "type": "int32",
+              "id": 10
+            },
+            "background_rgb_value": {
+              "type": "int32",
+              "id": 11
+            },
+            "direction": {
+              "type": ".chrome_screen_ai.Direction",
+              "id": 12
+            },
+            "content_type": {
+              "type": ".chrome_screen_ai.ContentType",
+              "id": 13
+            },
+            "confidence": {
+              "type": "float",
+              "id": 15
+            },
+            "estimate_gray_success": {
+              "type": "bool",
+              "id": 16
+            },
+            "whitespace_bounding_box": {
+              "type": ".chrome_screen_ai.Rect",
+              "id": 17
+            }
+          }
+        },
+        "SymbolBox": {
+          "edition": "2023",
+          "fields": {
+            "bounding_box": {
+              "type": ".chrome_screen_ai.Rect",
+              "id": 1
+            },
+            "utf8_string": {
+              "type": "string",
+              "id": 2
+            },
+            "confidence": {
+              "type": "float",
+              "id": 3
+            }
+          }
+        },
+        "VisualAnnotation": {
+          "edition": "2023",
+          "fields": {
+            "lines": {
+              "rule": "repeated",
+              "type": ".chrome_screen_ai.LineBox",
+              "id": 2
+            }
+          }
+        },
+        "Direction": {
+          "edition": "2023",
+          "values": {
+            "DIRECTION_UNSPECIFIED": 0,
+            "DIRECTION_LEFT_TO_RIGHT": 1,
+            "DIRECTION_RIGHT_TO_LEFT": 2,
+            "DIRECTION_TOP_TO_BOTTOM": 3
+          }
+        },
+        "Orientation": {
+          "edition": "2023",
+          "values": {
+            "ORIENTATION_DEFAULT": 0,
+            "ORIENTATION_HORIZONTAL": 1,
+            "ORIENTATION_VERTICAL": 2,
+            "ORIENTATION_ROTATED_HORIZONTAL": 3,
+            "ORIENTATION_ROTATED_VERTICAL": 4
+          }
+        },
+        "ContentType": {
+          "edition": "2023",
+          "values": {
+            "CONTENT_TYPE_PRINTED_TEXT": 0,
+            "CONTENT_TYPE_HANDWRITTEN_TEXT": 1,
+            "CONTENT_TYPE_IMAGE": 2,
+            "CONTENT_TYPE_LINE_DRAWING": 3,
+            "CONTENT_TYPE_SEPARATOR": 4,
+            "CONTENT_TYPE_UNREADABLE_TEXT": 5,
+            "CONTENT_TYPE_FORMULA": 6,
+            "CONTENT_TYPE_HANDWRITTEN_FORMULA": 7,
+            "CONTENT_TYPE_SIGNATURE": 8
+          }
+        }
+      }
+    }
+  }
+}
