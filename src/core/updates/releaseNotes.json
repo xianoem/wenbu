@@ -1,1 +1,18 @@
-[]
+[
+  {
+    "version": "0.1.0",
+    "date": "2026-11-13",
+    "changes": [
+      {
+        "kind": "fixed",
+        "area": "overlay",
+        "text": "Show the red sidebar dot only when the overlay has failed"
+      },
+      {
+        "kind": "new",
+        "area": "app",
+        "text": "Wenbu updates itself and shows what's new after each update"
+      }
+    ]
+  }
+]
