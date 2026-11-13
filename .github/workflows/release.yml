@@ -14,18 +14,7 @@ jobs:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     steps:
       - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 24
-          cache: pnpm
-      - run: pnpm install --frozen-lockfile
-      - uses: astral-sh/setup-uv@v6
-      - run: pnpm build:native
-      - run: pnpm check
-      - run: pnpm test
-      - run: pnpm test:python
-      - run: pnpm build
+      - uses: ./.github/actions/verify
       # Uploads the installer and latest.yml to a draft, so the updater never sees half a release.
       - run: pnpm exec electron-builder --win --publish always
       - name: Publish the release with its notes

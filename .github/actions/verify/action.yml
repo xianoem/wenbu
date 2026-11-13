@@ -1,0 +1,55 @@
+name: Verify
+description: Installs the toolchain, builds the native helpers, then checks, tests and builds Wenbu.
+
+inputs:
+  vulkan-sdk:
+    description: Vulkan SDK version the speech helper is built against.
+    default: 1.4.363.0
+
+runs:
+  using: composite
+  steps:
+    - uses: pnpm/action-setup@v4
+    - uses: actions/setup-node@v4
+      with:
+        node-version: 24
+        cache: pnpm
+    - run: pnpm install --frozen-lockfile
+      shell: pwsh
+    - uses: astral-sh/setup-uv@v6
+
+    - uses: actions/cache@v4
+      id: vulkan-sdk
+      with:
+        path: C:\VulkanSDK\${{ inputs.vulkan-sdk }}
+        key: vulkan-sdk-${{ inputs.vulkan-sdk }}
+    - name: Install the Vulkan SDK
+      if: steps.vulkan-sdk.outputs.cache-hit != 'true'
+      shell: pwsh
+      env:
+        VERSION: ${{ inputs.vulkan-sdk }}
+      run: |
+        $installer = Join-Path $env:RUNNER_TEMP 'vulkan-sdk.exe'
+        curl.exe -fsSL --retry 3 -o $installer "https://sdk.lunarg.com/sdk/download/$env:VERSION/windows/vulkansdk-windows-X64-$env:VERSION.exe"
+
+        if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+        $install = Start-Process $installer -Wait -PassThru -ArgumentList @(
+          '--root', "C:\VulkanSDK\$env:VERSION",
+          '--accept-licenses', '--default-answer', '--confirm-command', 'install'
+        )
+
+        exit $install.ExitCode
+    - shell: pwsh
+      run: Add-Content $env:GITHUB_ENV 'VULKAN_SDK=C:\VulkanSDK\${{ inputs.vulkan-sdk }}'
+
+    - run: pnpm build:native
+      shell: pwsh
+    - run: pnpm check
+      shell: pwsh
+    - run: pnpm test
+      shell: pwsh
+    - run: pnpm test:python
+      shell: pwsh
+    - run: pnpm build
+      shell: pwsh
