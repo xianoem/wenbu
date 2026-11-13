@@ -385,14 +385,11 @@ export const builtInFlags: ReadonlyArray<{ readonly id: string; readonly label: 
   { id: 'betrayal', label: 'Partner betrayal' },
   { id: 'ntr', label: 'NTR' },
   { id: 'harem', label: 'Harem' },
-  { id: 'sexual-violence', label: 'Sexual violence' },
   { id: 'love-death', label: 'Love interest dies' },
   { id: 'character-death', label: 'Character death' },
   { id: 'gore', label: 'Torture or gore' },
-  { id: 'slavery', label: 'Slavery' },
   { id: 'incest', label: 'Incest' },
   { id: 'child-abuse', label: 'Child abuse' },
-  { id: 'misogyny', label: 'Misogynistic protagonist' },
   { id: 'tragic-ending', label: 'Tragic ending' },
 ]
 

@@ -71,3 +71,20 @@ describe('digestPrompt', () => {
     expect(prompt).toContain('=== Chapter 1: 醒来\n他醒了。')
   })
 })
+
+describe('contentFlags', () => {
+  it('checks for the built-in flags and then the custom ones', () => {
+    expect(contentFlags(['Amnesia']).map((flag) => flag.id)).toEqual([
+      'betrayal',
+      'ntr',
+      'harem',
+      'love-death',
+      'character-death',
+      'gore',
+      'incest',
+      'child-abuse',
+      'tragic-ending',
+      'Amnesia',
+    ])
+  })
+})

@@ -28,14 +28,11 @@ const flagHints: Record<string, string> = {
   betrayal: 'a romantic partner cheats on or betrays the protagonist or another couple',
   ntr: 'a love interest is taken by someone else (netorare)',
   harem: 'the protagonist gathers several romantic partners',
-  'sexual-violence': 'rape or sexual assault, shown or told',
   'love-death': 'a love interest dies',
   'character-death': 'an important named character dies',
   gore: 'torture, mutilation or graphic gore',
-  slavery: 'slavery or people kept as property',
   incest: 'romance or sex between relatives',
   'child-abuse': 'abuse of a child',
-  misogyny: 'the protagonist treats women with contempt',
   'tragic-ending': 'the story ends tragically (only when this chapter is the ending)',
 }
 
