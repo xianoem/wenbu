@@ -69,6 +69,7 @@ import {
   setOverlayVisibleAtom,
   stopOverlayAtom,
 } from './overlay'
+import { overlayIndicator } from './utils/overlayIndicator'
 
 interface StatusMeta {
   readonly label: string
@@ -631,18 +632,6 @@ function HookList({ gameId, gameTitle }: { readonly gameId: string; readonly gam
   )
 }
 
-const indicatorOf = (state: OverlayState | undefined, setupRequired: boolean) => {
-  if (state?.status === 'failed' || setupRequired) {
-    return 'bg-destructive'
-  }
-
-  if (state?.sessionId === undefined) {
-    return undefined
-  }
-
-  return state.visible ? 'bg-warning' : 'border border-muted-foreground bg-transparent'
-}
-
 export function OverlayPopover() {
   const [open, setOpen] = useAtom(overlayPopoverOpenAtom)
   const stateResult = useAtomValue(overlayAtom)
@@ -657,7 +646,7 @@ export function OverlayPopover() {
   const game = games.find((candidate) => candidate.id === gameId)
   const title = state?.gameTitle ?? game?.title ?? 'Translation Overlay'
   const presetMissing = AsyncResult.isSuccess(settings) && settings.value.presetId === ''
-  const indicator = indicatorOf(state, presetMissing)
+  const indicator = overlayIndicator(state)
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
