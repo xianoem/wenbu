@@ -797,6 +797,11 @@ const migrations = SqliteMigrator.fromRecord({
 
     yield* sql`DELETE FROM dlsite_lists`
   }),
+  '0029_rescan_game_images': Effect.gen(function* () {
+    const sql = yield* SqlClient.SqlClient
+
+    yield* sql`DELETE FROM ingame_images`
+  }),
 })
 
 export const layer = (filename: string) =>

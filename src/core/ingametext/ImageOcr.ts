@@ -9,6 +9,9 @@ const JAPANESE = /[぀-ヿ㐀-鿿ｦ-ﾟ]/
 
 const CJK_GAP = /([぀-ヿ㐀-鿿！-｠])\s+(?=[぀-ヿ㐀-鿿！-｠])/g
 
+/** Screen AI reports nearly every line a fraction of a degree off level. */
+const MAX_TILT = (3 * Math.PI) / 180
+
 /** Screen AI puts spaces between Japanese words that the image never had. */
 export const cleanLine = (text: string) => text.replace(CJK_GAP, '$1').trim()
 
@@ -18,7 +21,7 @@ export const textBoxes = (ocr: OcrResult): ReadonlyArray<ImageBox> =>
       const key = cleanLine(line.text)
       const box = line.box
 
-      if (box === undefined || (box.rotation ?? 0) !== 0 || !JAPANESE.test(key)) {
+      if (box === undefined || Math.abs(box.rotation ?? 0) > MAX_TILT || !JAPANESE.test(key)) {
         return []
       }
 
