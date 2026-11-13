@@ -1,5 +1,21 @@
 [
   {
+    "version": "0.1.3",
+    "date": "2026-11-13",
+    "changes": [
+      {
+        "kind": "new",
+        "area": "ingametext",
+        "text": "Hide image text translation for now"
+      },
+      {
+        "kind": "fixed",
+        "area": "ingametext",
+        "text": "Keep image text lines Screen AI reads slightly off level"
+      }
+    ]
+  },
+  {
     "version": "0.1.2",
     "date": "2026-11-13",
     "changes": [
