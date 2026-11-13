@@ -280,7 +280,7 @@ function SubtitleSettingsForm({ saved }: { readonly saved: SubtitleSettings }) {
             <span className="inline-flex items-center gap-3">
               <Slider
                 aria-label="End-of-speech pause"
-                className="w-40"
+                className="data-horizontal:w-56"
                 min={250}
                 max={1000}
                 step={50}
@@ -293,7 +293,7 @@ function SubtitleSettingsForm({ saved }: { readonly saved: SubtitleSettings }) {
                   }
                 }}
               />
-              <span className="w-16 text-[12.5px] text-muted-foreground tabular-nums">
+              <span className="w-16 shrink-0 text-[12.5px] whitespace-nowrap text-muted-foreground tabular-nums">
                 {draft.pauseMs} ms
               </span>
             </span>

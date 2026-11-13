@@ -477,7 +477,7 @@ export function PluginsPage() {
           </p>
         </div>
         {state === undefined ? null : (
-          <>
+          <div className="flex items-center gap-3">
             <span className="text-[12.5px] text-muted-foreground">
               {state.checking
                 ? 'Checking…'
@@ -494,7 +494,7 @@ export function PluginsPage() {
               <ArrowsClockwiseIcon className={cn(state.checking && 'animate-spin')} />
               Check for updates
             </Button>
-          </>
+          </div>
         )}
       </div>
 
