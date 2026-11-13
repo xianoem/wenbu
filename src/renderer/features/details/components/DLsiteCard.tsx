@@ -1,5 +1,6 @@
-import { useAtomSet, useAtomValue } from '@effect/atom-react'
+import { useAtomRefresh, useAtomSet, useAtomValue } from '@effect/atom-react'
 import {
+  ArrowClockwiseIcon,
   BellIcon,
   CalendarBlankIcon,
   CaretLeftIcon,
@@ -23,6 +24,7 @@ import { gameIdAtom, openWorkAtom, screenAtom } from '#lib/navigation'
 import { Button } from '#ui/button'
 import { OverflowText } from '#ui/overflow-text'
 import { Skeleton } from '#ui/skeleton'
+import { Spinner } from '#ui/spinner'
 import {
   detailsErrorOf,
   dlsiteListAtom,
@@ -35,6 +37,7 @@ import {
   watchWorkAtom,
   workTypeLabels,
 } from '../details'
+import { DLsiteProblem } from './DLsiteProblem'
 import { GameTypeMenu } from './GameTypeMenu'
 import { TagMenu } from './TagMenu'
 
@@ -235,14 +238,19 @@ function LoadingTiles() {
 }
 
 function Works({ list, period }: { readonly list: DLsiteList; readonly period: RankingPeriod }) {
-  const result = useAtomValue(dlsiteListAtom(`${list}:${period}`))
+  const listAtom = dlsiteListAtom(`${list}:${period}`)
+  const result = useAtomValue(listAtom)
+  const retry = useAtomRefresh(listAtom)
   const [page, setPage] = useState(0)
 
   if (AsyncResult.isFailure(result)) {
     return (
-      <p className="mt-4 text-sm text-destructive">
-        {detailsErrorOf(result.cause)?.message ?? 'DLsite could not be reached.'}
-      </p>
+      <DLsiteProblem
+        className="mt-4"
+        message={detailsErrorOf(result.cause)?.message ?? 'DLsite could not be reached.'}
+        retrying={result.waiting}
+        onRetry={retry}
+      />
     )
   }
 
@@ -271,7 +279,21 @@ function Works({ list, period }: { readonly list: DLsiteList; readonly period: R
       <div className="mt-3.5 flex items-center gap-1.5 text-xs text-muted-foreground">
         <ClockIcon />
         {fetchedAt === null ? 'Not fetched yet' : `Updated ${formatDay(fetchedAt).toLowerCase()}`}
-        {problem === null ? null : <span className="text-warning">· {problem}</span>}
+        {problem === null ? null : (
+          <>
+            <span className="text-warning">· {problem}</span>
+            <Button
+              variant="ghost"
+              size="xs"
+              className="rounded-full"
+              disabled={result.waiting}
+              onClick={retry}
+            >
+              {result.waiting ? <Spinner data-icon="inline-start" /> : <ArrowClockwiseIcon />}
+              Try again
+            </Button>
+          </>
+        )}
         <span className="flex-1" />
         {pages > 1 ? (
           <>

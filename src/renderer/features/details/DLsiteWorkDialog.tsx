@@ -1,4 +1,4 @@
-import { useAtomSet, useAtomValue } from '@effect/atom-react'
+import { useAtomRefresh, useAtomSet, useAtomValue } from '@effect/atom-react'
 import {
   ArrowSquareOutIcon,
   BellIcon,
@@ -18,6 +18,7 @@ import { Button } from '#ui/button'
 import { Dialog, DialogContent, DialogTitle } from '#ui/dialog'
 import { ScrollArea } from '#ui/scroll-area'
 import { Skeleton } from '#ui/skeleton'
+import { DLsiteProblem } from './components/DLsiteProblem'
 import { JapanVpnNote } from './components/JapanVpnNote'
 import {
   circleWorksAtom,
@@ -357,15 +358,20 @@ function LoadingWork() {
 }
 
 function Work({ code }: { readonly code: string }) {
-  const result = useAtomValue(dlsiteWorkAtom(code))
+  const workAtom = dlsiteWorkAtom(code)
+  const result = useAtomValue(workAtom)
+  const retry = useAtomRefresh(workAtom)
 
   return (
     <>
       {AsyncResult.isSuccess(result) ? <Loaded page={result.value} /> : null}
       {AsyncResult.isFailure(result) ? (
-        <p className="mt-6 text-sm text-destructive">
-          {detailsErrorOf(result.cause)?.message ?? 'DLsite could not be reached.'}
-        </p>
+        <DLsiteProblem
+          className="mt-6"
+          message={detailsErrorOf(result.cause)?.message ?? 'DLsite could not be reached.'}
+          retrying={result.waiting}
+          onRetry={retry}
+        />
       ) : null}
       {AsyncResult.isInitial(result) ? <LoadingWork /> : null}
     </>
