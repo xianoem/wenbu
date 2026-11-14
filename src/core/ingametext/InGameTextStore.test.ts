@@ -115,37 +115,33 @@ describe('InGameTextStore', () => {
       expect(yield* store.counts('game', 'English')).toEqual({
         strings: 2,
         tooLong: 1,
-        images: { withText: 0, total: 0 },
       })
     }).pipe(Effect.provide(TestLayer)),
   )
 
-  it.effect('stores scanned images and counts the ones with text', () =>
+  it.effect('leaves Image Text out of the UI strings and their counts', () =>
     Effect.gen(function* () {
       const store = yield* InGameTextStore
 
       yield* addGame('game')
+      yield* store.saveTranslation({ ...useItem, translatedText: 'Use item' })
 
-      yield* store.saveImage('game', {
-        imagePath: 'pictures/title_logo',
-        fileSize: 10,
-        modifiedAt: '2026-10-25T00:00:00Z',
-        boxes: [{ x: 1, y: 2, w: 30, h: 12, key: '黄昏' }],
+      yield* store.saveTranslation({
+        ...useItem,
+        origin: 'image',
+        key: 'メッセージログ',
+        translatedText: 'Message Log',
       })
 
-      yield* store.saveImage('game', {
-        imagePath: 'pictures/forest',
-        fileSize: 20,
-        modifiedAt: '2026-10-25T00:00:00Z',
-        boxes: [],
-      })
+      expect(
+        (yield* store.entries('game', 'English', 'all', '')).map((entry) => entry.key),
+      ).toEqual(['アイテムを使う'])
 
-      expect((yield* store.images('game')).map((image) => image.imagePath)).toEqual([
-        'pictures/forest',
-        'pictures/title_logo',
+      expect(yield* store.counts('game', 'English')).toEqual({ strings: 1, tooLong: 0 })
+
+      expect(yield* store.dictionary('game', 'English', 'image')).toEqual([
+        ['メッセージログ', 'Message Log'],
       ])
-
-      expect((yield* store.counts('game', 'English')).images).toEqual({ withText: 1, total: 2 })
     }).pipe(Effect.provide(TestLayer)),
   )
 

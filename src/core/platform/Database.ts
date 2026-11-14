@@ -802,6 +802,29 @@ const migrations = SqliteMigrator.fromRecord({
 
     yield* sql`DELETE FROM ingame_images`
   }),
+  '0030_game_pictures': Effect.gen(function* () {
+    const sql = yield* SqlClient.SqlClient
+
+    yield* sql`DROP TABLE ingame_images`
+
+    yield* sql`
+      CREATE TABLE game_pictures (
+        game_id TEXT NOT NULL REFERENCES games(id),
+        picture TEXT NOT NULL,
+        file_size INTEGER NOT NULL,
+        modified_at TEXT NOT NULL,
+        width INTEGER NOT NULL,
+        height INTEGER NOT NULL,
+        lines TEXT NOT NULL,
+        group_key TEXT NOT NULL,
+        status TEXT NOT NULL,
+        cleaned_key TEXT,
+        translated_file TEXT,
+        scanned_at TEXT NOT NULL,
+        PRIMARY KEY (game_id, picture)
+      )
+    `
+  }),
 })
 
 export const layer = (filename: string) =>

@@ -9,6 +9,7 @@ import { LiveControlsError } from '#contract/LiveControls'
 import { LlmSettingsError } from '#contract/Llm'
 import { MangaError } from '#contract/Manga'
 import { NovelsError } from '#contract/Novels'
+import { PicturesError } from '#contract/Pictures'
 import { NotEnoughSpace, type SpaceShortfall } from '#contract/Storage'
 import { OverlayError } from '#contract/TranslationOverlay'
 
@@ -30,6 +31,7 @@ const isUserError = Schema.is(
     GameGuideError,
     DetailsError,
     NovelsError,
+    PicturesError,
     NotEnoughSpace,
   ]),
 )

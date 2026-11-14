@@ -86,7 +86,7 @@ export const EditorBlock = Schema.Struct({
 })
 
 const EditorFields = {
-  op: Schema.Literals(['scan', 'clean', 'render', 'breaks']),
+  op: Schema.Literals(['scan', 'clean', 'render', 'breaks', 'picture']),
   options: EditorOptions,
   source: Schema.String,
   mask: Schema.optional(Schema.String),

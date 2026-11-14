@@ -1,18 +1,6 @@
 import * as NodeServices from '@effect/platform-node/NodeServices'
 import { describe, expect, it } from '@effect/vitest'
-import { encode } from 'fast-png'
-import {
-  Context,
-  Deferred,
-  Effect,
-  FileSystem,
-  Layer,
-  Option,
-  Path,
-  Schedule,
-  Schema,
-  Stream,
-} from 'effect'
+import { Context, Deferred, Effect, Layer, Option, Schedule, Schema, Stream } from 'effect'
 import { KeyValueStore } from 'effect/persistence'
 import { RpcTest } from 'effect/rpc'
 import { defaultTranslationSettings } from '#contract/GameTranslation'
@@ -26,7 +14,6 @@ import { LiveControls } from '../livecontrols/LiveControls'
 import { LlmClient } from '../llm/LlmClient'
 import * as Database from '../platform/Database'
 import { DiskSpace } from '../platform/DiskSpace'
-import { ImageOcr } from './ImageOcr'
 import { budgetOf, makeInGameTextRpc, sceneName } from './InGameText'
 import { InGameTextStore } from './InGameTextStore'
 
@@ -34,7 +21,6 @@ const menuTranslations: Readonly<Record<string, string>> = {
   アイテム: 'Item',
   メッセージ速度: 'Message speed',
   'HP {0}/{1}': 'HP {0}/{1}',
-  黄昏の鎮魂歌: 'Twilight Requiem',
 }
 
 const encodeJson = Schema.encodeEffect(Schema.fromJsonString(Schema.Unknown))
@@ -51,8 +37,6 @@ interface FakeWorld {
   readonly reports: Array<Record<string, unknown>>
   readonly dictionary: Map<string, string>
   readonly prompts: Array<string>
-  readonly images: Map<string, unknown>
-  readonly ocrCalls: Array<string>
 }
 
 const fakeRuntime = (world: FakeWorld) =>
@@ -74,14 +58,6 @@ const fakeRuntime = (world: FakeWorld) =>
       snapshot: () => snapshot,
       setTextOptions: () => null,
       takeText: () => world.reports.splice(0),
-      addImages: ([images]) => {
-        // SAFETY: InGameText sends addImages one list of [path, boxes] pairs.
-        for (const image of (images ?? []) as ReadonlyArray<readonly [string, unknown]>) {
-          world.images.set(image[0], image[1])
-        }
-
-        return world.images.size
-      },
       addTexts: ([pairs]) => {
         // SAFETY: InGameText sends addTexts one list of [key, translation] string pairs.
         for (const pair of (pairs ?? []) as ReadonlyArray<ReadonlyArray<string>>) {
@@ -132,29 +108,6 @@ const LlmFake = (world: FakeWorld) =>
       }),
   })
 
-const OcrFake = (world: FakeWorld) =>
-  Layer.succeed(ImageOcr)({
-    recognize: (image) =>
-      Effect.sync(() => {
-        world.ocrCalls.push(`${image.width}x${image.height}`)
-
-        return {
-          image: { width: image.width, height: image.height },
-          paragraphs: [
-            {
-              lines: [
-                {
-                  text: '黄昏の 鎮魂歌',
-                  words: [],
-                  box: { centerX: 0.5, centerY: 0.5, width: 0.5, height: 0.5 },
-                },
-              ],
-            },
-          ],
-        }
-      }),
-  })
-
 const setup = Effect.fn(function* (
   options: { readonly folderPath?: string; readonly engine?: GameEngine } = {},
 ) {
@@ -163,8 +116,6 @@ const setup = Effect.fn(function* (
     reports: [],
     dictionary: new Map(),
     prompts: [],
-    images: new Map(),
-    ocrCalls: [],
   }
 
   const connector = Layer.succeed(GameConnector)({
@@ -181,7 +132,6 @@ const setup = Effect.fn(function* (
     Layer.provide(connector),
     Layer.provideMerge(InGameTextStore.layer),
     Layer.provide(LlmFake(world)),
-    Layer.provide(OcrFake(world)),
     Layer.provideMerge(Games.layer),
     Layer.provideMerge(KeyValueStore.layerSql({ table: 'settings' })),
     Layer.provideMerge(Database.layer(':memory:')),
@@ -232,31 +182,6 @@ const eventually = <A>(check: Effect.Effect<A, string>) =>
 const expectThat = (condition: () => boolean) =>
   eventually(Effect.suspend(() => (condition() ? Effect.void : Effect.fail('not yet'))))
 
-const pngBytes = (width: number, height: number) =>
-  encode({ width, height, data: new Uint8Array(width * height * 4).fill(200), channels: 4 })
-
-const mvGame = Effect.fn(function* () {
-  const fs = yield* FileSystem.FileSystem
-  const path = yield* Path.Path
-  const root = yield* fs.makeTempDirectoryScoped()
-  const pictures = path.join(root, 'www', 'img', 'pictures')
-  const faces = path.join(root, 'www', 'img', 'faces')
-  const png = pngBytes(32, 16)
-
-  yield* fs.makeDirectory(pictures, { recursive: true })
-  yield* fs.makeDirectory(faces, { recursive: true })
-  yield* fs.writeFile(path.join(pictures, 'Title.png'), png)
-
-  yield* fs.writeFile(
-    path.join(pictures, 'cg01.rpgmvp'),
-    new Uint8Array([...new Uint8Array(32).fill(7), ...png.subarray(16)]),
-  )
-
-  yield* fs.writeFile(path.join(faces, 'Hero.png'), png)
-
-  return root
-})
-
 describe('InGameText', () => {
   it('names scenes and estimates how many characters fit', () => {
     expect([sceneName('Scene_Options'), sceneName('Scene_QuestLog'), sceneName('Window')]).toEqual([
@@ -301,7 +226,7 @@ describe('InGameText', () => {
         .watchInGameTextSummary({ gameId: game.id })
         .pipe(Stream.runHead, Effect.map(Option.getOrThrow))
 
-      expect(summary).toEqual({ strings: 1, tooLong: 0, images: { withText: 0, total: 0 } })
+      expect(summary).toEqual({ strings: 1, tooLong: 0 })
     }).pipe(Effect.scoped),
   )
 
@@ -325,7 +250,7 @@ describe('InGameText', () => {
       yield* connect
       yield* expectThat(() => world.dictionary.get('セーブ') === 'Save')
 
-      expect(world.calls).toContain('setTextOptions([true,false,true,false,"cover","backquote"])')
+      expect(world.calls).toContain('setTextOptions([true,true,false,"backquote"])')
     }).pipe(Effect.scoped),
   )
 
@@ -347,6 +272,17 @@ describe('InGameText', () => {
 
       expect(world.calls.some((call) => call.startsWith('takeText'))).toBe(false)
       expect(world.prompts).toEqual([])
+    }).pipe(Effect.scoped),
+  )
+
+  it.live('wraps long dialogue lines in a game whose settings were never changed', () =>
+    Effect.gen(function* () {
+      const { world, connect } = yield* setup()
+
+      yield* connect
+      yield* expectThat(() => world.calls.some((call) => call.startsWith('setTextOptions')))
+
+      expect(world.calls).toContain('setTextOptions([false,true,false,"backquote"])')
     }).pipe(Effect.scoped),
   )
 
@@ -401,51 +337,6 @@ describe('InGameText', () => {
 
       expect(tooLong).toMatchObject([{ key: 'メッセージ速度', translatedText: 'Msg speed' }])
     }).pipe(Effect.scoped),
-  )
-
-  it.live('reads and translates the text in pictures, then paints it in the running game', () =>
-    Effect.gen(function* () {
-      const folderPath = yield* mvGame()
-      const { world, client, game, connect } = yield* setup({ folderPath, engine: 'rpg-maker-mv' })
-
-      yield* client.saveInGameTextSettings({
-        gameId: game.id,
-        settings: { ...defaultInGameTextSettings, imageText: true },
-      })
-
-      yield* connect
-      yield* client.scanGameImages({ gameId: game.id })
-      yield* expectThat(() => world.images.size === 2)
-
-      expect(world.images.get('pictures/title')).toEqual([[8, 4, 16, 8, 'Twilight Requiem']])
-      expect([...world.images.keys()].toSorted()).toEqual(['pictures/cg01', 'pictures/title'])
-
-      const summary = yield* client
-        .watchInGameTextSummary({ gameId: game.id })
-        .pipe(Stream.runHead, Effect.map(Option.getOrThrow))
-
-      expect(summary).toEqual({ strings: 1, tooLong: 0, images: { withText: 2, total: 2 } })
-
-      const images = yield* client.listInGameTexts({
-        gameId: game.id,
-        filter: 'images',
-        search: '',
-      })
-
-      expect(images).toMatchObject([
-        {
-          key: '黄昏の鎮魂歌',
-          origin: 'image',
-          translatedText: 'Twilight Requiem',
-          allowedWidth: 16,
-        },
-      ])
-
-      yield* client.scanGameImages({ gameId: game.id })
-      yield* Effect.sleep('50 millis')
-
-      expect(world.ocrCalls).toEqual(['32x16', '32x16'])
-    }).pipe(Effect.scoped, Effect.provide(NodeServices.layer)),
   )
 
   it.live('sends an edit to the running game and keeps it from later translations', () =>

@@ -4,12 +4,15 @@ import { textBoxes } from './ImageOcr'
 
 const degrees = (value: number) => (value * Math.PI) / 180
 
-const titleScreen = (rotations: ReadonlyArray<number>): OcrResult => ({
+const titleScreen = (
+  rotations: ReadonlyArray<number>,
+  text = (index: number) => `メモリーズ${index}`,
+): OcrResult => ({
   image: { width: 1280, height: 720 },
   paragraphs: [
     {
       lines: rotations.map((rotation, index) => ({
-        text: `メモリーズ${index}`,
+        text: text(index),
         words: [],
         box: { centerX: 0.5, centerY: 0.25, width: 0.25, height: 0.125, rotation },
       })),
@@ -24,6 +27,12 @@ describe('textBoxes', () => {
     expect(boxes).toEqual([
       { x: 480, y: 135, w: 320, h: 90, key: 'メモリーズ0' },
       { x: 480, y: 135, w: 320, h: 90, key: 'メモリーズ1' },
+    ])
+  })
+
+  it('leaves out single characters, which are mostly icons read as text', () => {
+    expect(textBoxes(titleScreen([0, 0], (index) => ['自', '日記'][index] ?? ''))).toMatchObject([
+      { key: '日記' },
     ])
   })
 

@@ -76,6 +76,7 @@ import { UpdateNotice } from '../../translation/UpdateNotice'
 import { SpendMeter } from './SpendMeter'
 import { TranslateDialog } from './TranslateDialog'
 import { TranslationEstimate } from './TranslationEstimate'
+import { DialogueWrapRow } from '../../ingametext/DialogueWrapRow'
 
 const stepTitles: Record<StepId, string> = {
   prepare: 'Save the original files',
@@ -546,6 +547,8 @@ export function TranslationPanel({
       </div>
 
       {showingHistory ? <History runs={runs} /> : null}
+
+      <DialogueWrapRow game={game} className="mt-4 pb-0" />
 
       {confirmingRun && settings !== undefined && missing !== undefined && changed !== undefined ? (
         <TranslateDialog

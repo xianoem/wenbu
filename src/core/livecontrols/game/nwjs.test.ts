@@ -2,7 +2,32 @@ import { describe, expect, it } from '@effect/vitest'
 import type { RuntimeArgument } from '../GameRuntime'
 import source from './nwjs.js?raw'
 
+class FakeImage {
+  complete = false
+  naturalWidth = 0
+  private source = ''
+  private loaded: Array<() => void> = []
+
+  addEventListener(event: string, listener: () => void) {
+    if (event === 'load') {
+      this.loaded.push(listener)
+    }
+  }
+
+  get src() {
+    return this.source
+  }
+
+  set src(value: string) {
+    this.source = value
+    this.complete = true
+    this.naturalWidth = 1
+    this.loaded.forEach((listener) => listener())
+  }
+}
+
 const makeGame = () => {
+  const reads: Array<string> = []
   const drawn: Array<number> = []
   const texts: Array<{ readonly text: string; readonly size: number; readonly y: number }> = []
 
@@ -25,17 +50,21 @@ const makeGame = () => {
     painted: Array<string> = []
     ready = true
     listeners: Array<() => void> = []
+    width = 32
+    height = 16
 
-    getPixel() {
-      return '#c86400'
+    context = {
+      drawImage: (image: FakeImage) => {
+        this.painted.push(`draw ${Buffer.from(image.src.split(',')[1] ?? '', 'base64').toString()}`)
+      },
     }
 
-    fillRect(x: number, y: number, w: number, h: number, color: string) {
-      this.painted.push(`fill ${x},${y},${w},${h} ${color}`)
+    clear() {
+      this.painted.push('clear')
     }
 
-    clearRect(x: number, y: number, w: number, h: number) {
-      this.painted.push(`clear ${x},${y},${w},${h}`)
+    _setDirty() {
+      this.painted.push('dirty')
     }
 
     blt(source: Bitmap, sx: number, sy: number, w: number, h: number, dx: number, dy: number) {
@@ -345,6 +374,17 @@ const makeGame = () => {
 
   const window: Record<string, unknown> = {
     Bitmap,
+    Image: FakeImage,
+    require: (module: string) =>
+      module === 'fs'
+        ? {
+            readFileSync: (file: string) => {
+              reads.push(file)
+
+              return Buffer.from(`png:${file}`)
+            },
+          }
+        : undefined,
     ImageManager,
     Window_Base,
     Window_Message,
@@ -418,6 +458,7 @@ const makeGame = () => {
 
   return {
     window,
+    reads,
     actors,
     drawn,
     texts,
@@ -556,7 +597,7 @@ describe('MV and MZ runtime', () => {
       const game = makeGame()
 
       game.install()
-      game.call('setTextOptions', false, false, true, options.reflow ?? false, 'cover', 'backquote')
+      game.call('setTextOptions', false, true, options.reflow ?? false, 'backquote')
 
       return game
     }
@@ -653,7 +694,7 @@ describe('MV and MZ runtime', () => {
 
       expect(message.allText()).toBe("Rin:\nI never thought I'd see you here.\n\nBye.")
 
-      game.call('setTextOptions', false, false, true, false, 'cover', 'backquote')
+      game.call('setTextOptions', false, true, false, 'backquote')
 
       expect(message.allText()).toBe("Rin:\nI never thought\nI'd see you here.\n\nBye.")
     })
@@ -682,7 +723,7 @@ describe('MV and MZ runtime', () => {
       const game = makeGame()
 
       game.install()
-      game.call('setTextOptions', true, false, false, false, 'cover', 'backquote')
+      game.call('setTextOptions', true, false, false, 'backquote')
 
       return game
     }
@@ -775,7 +816,7 @@ describe('MV and MZ runtime', () => {
       }
 
       game.install()
-      game.call('setTextOptions', true, false, false, false, 'cover', 'tab')
+      game.call('setTextOptions', true, false, false, 'tab')
       game.call('addTexts', [['アイテム', 'Item']])
       listeners.get('keydown')?.({ code: 'Backquote', repeat: false })
 
@@ -802,73 +843,91 @@ describe('MV and MZ runtime', () => {
   })
 
   describe('Image Text', () => {
-    const painting = (style = 'cover') => {
+    const title = [['pictures/title', 'C:/data/title.1.png']]
+
+    const drawn = (file: string) => ['clear', `draw png:${file}`, 'dirty']
+
+    it('draws the Translated Picture over a picture as it loads', () => {
       const game = makeGame()
 
       game.install()
-      game.call('setTextOptions', false, true, false, false, style, 'backquote')
-
-      return game
-    }
-
-    const title = [['pictures/title', [[8, 4, 16, 8, 'Hi']]]]
-
-    it('paints the translation over the text of a picture as it loads', () => {
-      const game = painting()
-
-      game.call('addImages', title)
+      game.call('setPictures', title)
 
       const picture = game.ImageManager.loadBitmap('img/pictures/', 'Title')
 
-      expect(picture.painted).toEqual(['fill 8,4,16,8 #c86400'])
-      expect(game.texts.at(-1)).toMatchObject({ text: 'Hi', size: 10 })
+      expect(picture.painted).toEqual(drawn('C:/data/title.1.png'))
     })
 
-    it('paints pictures that loaded before their translations arrived, once', () => {
-      const game = painting('label')
+    it('draws pictures that loaded before the list arrived, once', () => {
+      const game = makeGame()
+
+      game.install()
+
       const picture = game.ImageManager.loadBitmap('img/pictures/', 'Title')
 
-      game.call('addImages', title)
-      game.call('addImages', title)
+      game.call('setPictures', title)
+      game.call('setPictures', title)
 
-      expect(picture.painted).toEqual(['fill 8,4,16,8 #281400'])
+      expect(picture.painted).toEqual([
+        ...drawn('C:/data/title.1.png'),
+        'clear',
+        'blt copy 0,0,32,16 -> 0,0',
+        ...drawn('C:/data/title.1.png'),
+      ])
     })
 
     it('waits for a picture that is still loading', () => {
-      const game = painting()
+      const game = makeGame()
 
-      game.call('addImages', title)
+      game.install()
 
       const picture = game.ImageManager.loadBitmap('img/pictures/', 'Other')
 
       picture.ready = false
-      game.call('addImages', [['pictures/other', [[0, 0, 4, 4, 'A']]]])
+      game.call('setPictures', [['pictures/other', 'C:/data/other.1.png']])
 
       expect(picture.painted).toEqual([])
 
       picture.load()
 
-      expect(picture.painted).toEqual(['fill 0,0,4,4 #c86400'])
+      expect(picture.painted).toEqual(drawn('C:/data/other.1.png'))
     })
 
-    it('puts the original back while the key is held and when images are turned off', () => {
-      const game = painting()
+    it('reads a picture again after it stopped being drawn, rather than keeping it', () => {
+      const game = makeGame()
 
-      game.call('addImages', title)
+      game.install()
+      game.ImageManager.loadBitmap('img/pictures/', 'Title')
+      game.call('setPictures', title)
+      game.call('setPictures', [['pictures/title', 'C:/data/title.2.png']])
+      game.call('setPictures', title)
+
+      expect(game.reads).toEqual([
+        'C:/data/title.1.png',
+        'C:/data/title.2.png',
+        'C:/data/title.1.png',
+      ])
+    })
+
+    it('puts the original back while the key is held and when the picture is withdrawn', () => {
+      const game = makeGame()
+
+      game.install()
+      game.call('setPictures', title)
 
       const picture = game.ImageManager.loadBitmap('img/pictures/', 'Title')
 
       game.call('showOriginal', true)
       game.call('showOriginal', false)
-      game.call('setTextOptions', false, false, false, false, 'cover', 'backquote')
+      game.call('setPictures', [])
+
+      const restored = ['clear', 'blt copy 0,0,32,16 -> 0,0']
 
       expect(picture.painted).toEqual([
-        'fill 8,4,16,8 #c86400',
-        'clear 8,4,16,8',
-        'blt copy 0,0,16,8 -> 8,4',
-        'fill 8,4,16,8 #c86400',
-        'clear 8,4,16,8',
-        'blt copy 0,0,16,8 -> 8,4',
+        ...drawn('C:/data/title.1.png'),
+        ...restored,
+        ...drawn('C:/data/title.1.png'),
+        ...restored,
       ])
     })
   })

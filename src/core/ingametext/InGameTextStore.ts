@@ -26,27 +26,9 @@ export interface StoredEntry extends InGameTextEntry {
   readonly shortened: boolean
 }
 
-export const ImageBox = Schema.Struct({
-  x: Schema.Int,
-  y: Schema.Int,
-  w: Schema.Int,
-  h: Schema.Int,
-  key: Schema.String,
-})
-
-export type ImageBox = typeof ImageBox.Type
-
-export interface ImageRecord {
-  readonly imagePath: string
-  readonly fileSize: number
-  readonly modifiedAt: string
-  readonly boxes: ReadonlyArray<ImageBox>
-}
-
 export interface StoredCounts {
   readonly strings: number
   readonly tooLong: number
-  readonly images: { readonly withText: number; readonly total: number }
 }
 
 const Row = Schema.Struct({
@@ -62,15 +44,6 @@ const Row = Schema.Struct({
   shortened: Schema.Int,
   first_seen_at: Schema.String,
   updated_at: Schema.String,
-})
-
-const BoxesJson = Schema.fromJsonString(Schema.Array(ImageBox))
-
-const ImageRow = Schema.Struct({
-  image_path: Schema.String,
-  file_size: Schema.Int,
-  modified_at: Schema.String,
-  boxes: BoxesJson,
 })
 
 const Count = Schema.Struct({ count: Schema.Int })
@@ -115,10 +88,6 @@ const filterClause = (filter: string) => {
     return 'AND edited = 1'
   }
 
-  if (filter === 'images') {
-    return "AND origin = 'image'"
-  }
-
   return ''
 }
 
@@ -155,8 +124,6 @@ export class InGameTextStore extends Context.Service<
       allowedWidth: number | undefined,
     ) => Effect.Effect<void>
     readonly counts: (gameId: string, targetLanguage: string) => Effect.Effect<StoredCounts>
-    readonly images: (gameId: string) => Effect.Effect<ReadonlyArray<ImageRecord>>
-    readonly saveImage: (gameId: string, image: ImageRecord) => Effect.Effect<void>
   }
 >()('wenbu/core/ingametext/InGameTextStore') {
   static readonly layer = Layer.effect(
@@ -175,6 +142,7 @@ export class InGameTextStore extends Context.Service<
             SELECT * FROM ingame_texts
             WHERE game_id = ${request.gameId}
               AND target_language = ${request.targetLanguage}
+              AND origin = 'ui'
               ${sql.unsafe(filterClause(request.filter))}
               AND (source_key LIKE ${pattern} OR translated_text LIKE ${pattern})
             ORDER BY fit = 'too-long' DESC, first_seen_at DESC, source_key
@@ -212,19 +180,10 @@ export class InGameTextStore extends Context.Service<
           execute: (by) => sql`
             SELECT COUNT(*) AS count FROM ingame_texts
             WHERE game_id = ${by.gameId} AND target_language = ${by.targetLanguage}
-            ${sql.unsafe(clause)}
+              AND origin = 'ui'
+              ${sql.unsafe(clause)}
           `,
         })(request).pipe(Effect.map((row) => row.count))
-
-      const findImages = SqlSchema.findAll({
-        Request: Schema.String,
-        Result: ImageRow,
-        execute: (gameId) => sql`
-          SELECT image_path, file_size, modified_at, boxes FROM ingame_images
-          WHERE game_id = ${gameId}
-          ORDER BY image_path
-        `,
-      })
 
       const entries = (
         gameId: string,
@@ -348,56 +307,11 @@ export class InGameTextStore extends Context.Service<
         targetLanguage: string,
       ) {
         const by = { gameId, targetLanguage }
-        const images = yield* findImages(gameId)
 
         return {
           strings: yield* countWhere(by, ''),
           tooLong: yield* countWhere(by, "AND fit = 'too-long'"),
-          images: {
-            withText: images.filter((image) => image.boxes.length > 0).length,
-            total: images.length,
-          },
         }
-      }, Effect.orDie)
-
-      const images = (gameId: string) =>
-        findImages(gameId).pipe(
-          Effect.map((rows) =>
-            rows.map((row): ImageRecord => ({
-              imagePath: row.image_path,
-              fileSize: row.file_size,
-              modifiedAt: row.modified_at,
-              boxes: row.boxes,
-            })),
-          ),
-          Effect.orDie,
-        )
-
-      const saveImage = Effect.fn('InGameTextStore.saveImage')(function* (
-        gameId: string,
-        image: ImageRecord,
-      ) {
-        if ((yield* disk.dataLevel) === 'critical') {
-          return
-        }
-
-        const row = {
-          game_id: gameId,
-          image_path: image.imagePath,
-          file_size: image.fileSize,
-          modified_at: image.modifiedAt,
-          boxes: yield* Schema.encodeEffect(BoxesJson)(image.boxes),
-          scanned_at: yield* now,
-        }
-
-        yield* sql`
-          INSERT INTO ingame_images ${sql.insert(row)}
-          ON CONFLICT (game_id, image_path) DO UPDATE SET
-            file_size = excluded.file_size,
-            modified_at = excluded.modified_at,
-            boxes = excluded.boxes,
-            scanned_at = excluded.scanned_at
-        `
       }, Effect.orDie)
 
       return InGameTextStore.of({
@@ -410,8 +324,6 @@ export class InGameTextStore extends Context.Service<
         setLocked,
         recordFit,
         counts,
-        images,
-        saveImage,
       })
     }),
   )

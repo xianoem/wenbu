@@ -1,7 +1,6 @@
 import {
   Duration,
   Effect,
-  FiberMap,
   Option,
   Ref,
   Schedule,
@@ -14,7 +13,6 @@ import { KeyValueStore } from 'effect/persistence'
 import { defaultTranslationSettings, TranslationSettings } from '#contract/GameTranslation'
 import {
   defaultInGameTextSettings,
-  type ImageScanProgress,
   type InGameTextEntry,
   InGameTextError,
   type InGameTextOrigin,
@@ -23,15 +21,11 @@ import {
   type InGameTextSummary,
   TextFit,
 } from '#contract/InGameText'
-import type { Game } from '#contract/Library'
-import { Games } from '../library/Games'
 import type { ConnectedGame } from '../livecontrols/LiveControls'
 import { LiveControls } from '../livecontrols/LiveControls'
 import { LlmClient } from '../llm/LlmClient'
 import * as SettingsStore from '../platform/SettingsStore'
 import { parseReply, systemPrompt } from '../translation/Batches'
-import { decodeRgba, listGameImages } from './GameImages'
-import { ImageOcr, textBoxes } from './ImageOcr'
 import { type EntryKey, InGameTextStore, type StoredEntry } from './InGameTextStore'
 
 const Report = Schema.Struct({
@@ -90,12 +84,6 @@ interface Wanted {
   readonly budget: number | undefined
 }
 
-interface ImageWanted extends Wanted {
-  readonly scene: string
-  readonly width: number
-  readonly size: number
-}
-
 const encodeJson = Schema.encodeEffect(Schema.fromJsonString(Schema.Unknown))
 
 const uiPrompt = Effect.fnUntraced(function* (
@@ -135,16 +123,8 @@ const BATCH_SIZE = 40
 
 const PUSH_SIZE = 500
 
-const IMAGE_PUSH_SIZE = 50
-
 const sameSummary = (left: InGameTextSummary, right: InGameTextSummary) =>
-  left.strings === right.strings &&
-  left.tooLong === right.tooLong &&
-  left.images.withText === right.images.withText &&
-  left.images.total === right.images.total &&
-  left.scan?.done === right.scan?.done &&
-  left.scan?.total === right.scan?.total &&
-  left.notice === right.notice
+  left.strings === right.strings && left.tooLong === right.tooLong && left.notice === right.notice
 
 const notFound = () =>
   new InGameTextError({ reason: 'not-found', message: 'This string is no longer in the list.' })
@@ -160,10 +140,6 @@ export const makeInGameTextRpc = (timing: InGameTextTiming) =>
       const layerScope = yield* Scope.Scope
       const store = yield* InGameTextStore
       const llm = yield* LlmClient
-      const games = yield* Games
-      const ocr = yield* ImageOcr
-      const scans = yield* FiberMap.make<string>()
-      const progress = yield* Ref.make(new Map<string, ImageScanProgress>())
       const kv = yield* KeyValueStore.KeyValueStore
       const settingsStore = SettingsStore.make(kv, InGameTextSettings, defaultInGameTextSettings)
 
@@ -243,10 +219,8 @@ export const makeInGameTextRpc = (timing: InGameTextTiming) =>
         session.runtime
           .call('setTextOptions', [
             settings.uiText,
-            settings.imageText,
             settings.wordWrap,
             settings.reflow,
-            settings.imageStyle,
             settings.originalKey,
           ])
           .pipe(Effect.catch(logFailure(session.game.id, 'applying settings')))
@@ -256,55 +230,6 @@ export const makeInGameTextRpc = (timing: InGameTextTiming) =>
 
         yield* pushTexts(session, yield* store.dictionary(session.game.id, targetLanguage, 'ui'))
       })
-
-      const setProgress = (gameId: string, value: ImageScanProgress | undefined) =>
-        Ref.update(progress, (map) => {
-          const next = new Map(map)
-
-          if (value === undefined) {
-            next.delete(gameId)
-          } else {
-            next.set(gameId, value)
-          }
-
-          return next
-        }).pipe(Effect.andThen(changed))
-
-      const imagePayload = Effect.fnUntraced(function* (gameId: string) {
-        const { targetLanguage } = yield* translation
-        const translated = new Map(yield* store.dictionary(gameId, targetLanguage, 'image'))
-        const images = yield* store.images(gameId)
-
-        return images.flatMap((image) => {
-          const boxes = image.boxes.flatMap((box) => {
-            const text = translated.get(box.key)
-
-            return text === undefined ? [] : [[box.x, box.y, box.w, box.h, text]]
-          })
-
-          return boxes.length === 0 ? [] : [[image.imagePath, boxes]]
-        })
-      })
-
-      const pushImages = (session: ConnectedGame) =>
-        Effect.gen(function* () {
-          const payload = yield* imagePayload(session.game.id)
-
-          for (let start = 0; start < payload.length; start += IMAGE_PUSH_SIZE) {
-            yield* session.runtime.call('addImages', [
-              payload.slice(start, start + IMAGE_PUSH_SIZE),
-            ])
-          }
-        }).pipe(Effect.catch(logFailure(session.game.id, 'sending images')))
-
-      const pushImagesTo = (gameId: string) =>
-        Effect.gen(function* () {
-          const session = yield* sessionFor(gameId)
-
-          if (Option.isSome(session) && (yield* settingsOf(gameId)).imageText) {
-            yield* pushImages(session.value)
-          }
-        })
 
       const noPreset = () =>
         new InGameTextError({
@@ -546,10 +471,6 @@ export const makeInGameTextRpc = (timing: InGameTextTiming) =>
           yield* pushDictionary(session)
         }
 
-        if (settings.imageText) {
-          yield* pushImages(session)
-        }
-
         yield* poll(session).pipe(Effect.repeat(Schedule.spaced(timing.poll)))
       })
 
@@ -560,109 +481,6 @@ export const makeInGameTextRpc = (timing: InGameTextTiming) =>
         Stream.runDrain,
         Effect.forkScoped,
       )
-
-      const scanImages = Effect.fnUntraced(function* (game: Game) {
-        const images = yield* listGameImages(game)
-
-        const known = new Map(
-          (yield* store.images(game.id)).map((image) => [image.imagePath, image]),
-        )
-
-        let done = 0
-
-        yield* setProgress(game.id, { done, total: images.length })
-
-        for (const image of images) {
-          const before = known.get(image.path)
-
-          const unchanged =
-            before !== undefined &&
-            before.fileSize === image.fileSize &&
-            before.modifiedAt === image.modifiedAt
-
-          if (!unchanged) {
-            const rgba = yield* image.read.pipe(
-              Effect.flatMap((bytes) => decodeRgba(bytes)),
-              Effect.option,
-            )
-
-            const readable = Option.filter(
-              rgba,
-              (decoded) => decoded.width >= 24 && decoded.height >= 12,
-            )
-
-            const boxes = Option.isSome(readable)
-              ? textBoxes(yield* ocr.recognize(readable.value))
-              : []
-
-            yield* store.saveImage(game.id, {
-              imagePath: image.path,
-              fileSize: image.fileSize,
-              modifiedAt: image.modifiedAt,
-              boxes,
-            })
-          }
-
-          done++
-          yield* setProgress(game.id, { done, total: images.length })
-        }
-
-        const settings = yield* translation
-
-        const translated = new Set(
-          (yield* store.dictionary(game.id, settings.targetLanguage, 'image')).map(([key]) => key),
-        )
-
-        const wanted = new Map<string, ImageWanted>()
-
-        for (const image of yield* store.images(game.id)) {
-          for (const box of image.boxes) {
-            if (!translated.has(box.key) && !wanted.has(box.key)) {
-              const size = Math.max(8, Math.round(box.h * 0.8))
-
-              wanted.set(box.key, {
-                key: box.key,
-                budget: budgetOf(box.w, size),
-                scene: image.imagePath,
-                width: box.w,
-                size,
-              })
-            }
-          }
-        }
-
-        const all = [...wanted.values()]
-
-        for (let start = 0; start < all.length; start += BATCH_SIZE) {
-          const batch = all.slice(start, start + BATCH_SIZE)
-          const translations = yield* requestTranslations(game.id, settings, batch)
-
-          yield* Effect.forEach(
-            batch,
-            (item) => {
-              const text = translations.get(item.key)
-
-              return text === undefined
-                ? Effect.void
-                : store.saveTranslation({
-                    gameId: game.id,
-                    targetLanguage: settings.targetLanguage,
-                    origin: 'image',
-                    key: item.key,
-                    translatedText: text,
-                    scene: item.scene,
-                    allowedWidth: item.width,
-                    fontSize: item.size,
-                  })
-            },
-            { discard: true },
-          )
-
-          yield* changed
-        }
-
-        yield* pushImagesTo(game.id)
-      })
 
       const saveSettings = Effect.fn('InGameText.saveSettings')(function* (
         gameId: string,
@@ -681,10 +499,6 @@ export const makeInGameTextRpc = (timing: InGameTextTiming) =>
           if (settings.uiText && !before.uiText) {
             yield* pushDictionary(session.value)
           }
-
-          if (settings.imageText && !before.imageText) {
-            yield* pushImages(session.value)
-          }
         }
 
         yield* changed
@@ -696,11 +510,9 @@ export const makeInGameTextRpc = (timing: InGameTextTiming) =>
         const { targetLanguage } = yield* translation
         const counts = yield* store.counts(gameId, targetLanguage)
         const notice = (yield* Ref.get(notices)).get(gameId)
-        const scan = (yield* Ref.get(progress)).get(gameId)
 
         return {
           ...counts,
-          ...(scan === undefined ? {} : { scan }),
           ...(notice === undefined ? {} : { notice }),
         } satisfies InGameTextSummary
       })
@@ -727,8 +539,6 @@ export const makeInGameTextRpc = (timing: InGameTextTiming) =>
 
         if (key.origin === 'ui') {
           yield* pushTextsTo(key.gameId, [[key.key, entry.value.translatedText]])
-        } else {
-          yield* pushImagesTo(key.gameId)
         }
 
         return toEntry(entry.value)
@@ -771,33 +581,6 @@ export const makeInGameTextRpc = (timing: InGameTextTiming) =>
 
             return yield* afterChange(entry, yield* store.edit(entry, shorter))
           }),
-        scanGameImages: ({ gameId }) =>
-          Effect.gen(function* () {
-            const game = yield* games
-              .get(gameId)
-              .pipe(
-                Effect.mapError(
-                  (error) => new InGameTextError({ reason: 'not-found', message: error.message }),
-                ),
-              )
-
-            yield* notify(gameId, undefined)
-
-            yield* FiberMap.run(
-              scans,
-              gameId,
-              scanImages(game).pipe(
-                Effect.catch((error) =>
-                  Effect.andThen(
-                    logFailure(gameId, 'scanning images')(error),
-                    notify(gameId, error.message),
-                  ),
-                ),
-                Effect.ensuring(setProgress(gameId, undefined)),
-              ),
-            )
-          }),
-        cancelImageScan: ({ gameId }) => FiberMap.remove(scans, gameId),
       })
     }),
   )

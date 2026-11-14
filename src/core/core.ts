@@ -32,7 +32,6 @@ import { GuideIndexStore } from './gameguide/GuideIndexStore'
 import { RootWatcher } from './galleries/RootWatcher'
 import { SignInWindows } from './downloads/SignInWindows'
 import { GoogleLens } from './detections/GoogleLens'
-import { ImageOcr } from './ingametext/ImageOcr'
 import { InGameTextRpcLive } from './ingametext/InGameText'
 import { InGameTextStore } from './ingametext/InGameTextStore'
 import { ScreenAiOcr } from './detections/ScreenAiOcr'
@@ -53,6 +52,10 @@ import { UsageLog } from './llm/UsageLog'
 import { MangaRpcLive } from './manga/Manga'
 import { MangaRuntime } from './manga/MangaRuntime'
 import { MangaEditorRpcLive } from './mangaEditor/MangaEditor'
+import { ImageOcr } from './pictures/ImageOcr'
+import { PictureCleaner } from './pictures/PictureCleaner'
+import { PicturesRpcLive } from './pictures/Pictures'
+import { PictureStore } from './pictures/PictureStore'
 import { MemoriesRpcLive } from './memories/Memories'
 import { GlossaryStore } from './glossary/GlossaryStore'
 import { NovelsRpcLive } from './novels/Novels'
@@ -301,7 +304,17 @@ const LiveControlsLive = Layer.mergeAll(LiveControlsRpcLive, LiveControlsWindowL
 )
 
 const InGameTextLive = InGameTextRpcLive.pipe(
-  Layer.provide([InGameTextStore.layer, ImageOcr.layer.pipe(Layer.provide(PluginsLive))]),
+  Layer.provide(InGameTextStore.layer),
+  Layer.provide([LiveControlsCore, LlmLive]),
+)
+
+const PicturesLive = PicturesRpcLive.pipe(
+  Layer.provide([
+    PictureStore.layer,
+    InGameTextStore.layer,
+    ImageOcr.layer.pipe(Layer.provide(PluginsLive)),
+    PictureCleaner.layer.pipe(Layer.provide(PluginsLive)),
+  ]),
   Layer.provide([LiveControlsCore, LlmLive, Games.layer]),
 )
 
@@ -395,6 +408,7 @@ const CoreLive = RpcServer.layer(WenbuRpc).pipe(
     DetectionsLive,
     LiveControlsLive,
     InGameTextLive,
+    PicturesLive,
     GameGuideLive,
     MemoriesLive,
     MangaLive,

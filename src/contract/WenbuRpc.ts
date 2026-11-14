@@ -15,6 +15,7 @@ import { MangaRpc } from './Manga'
 import { MangaEditorRpc } from './MangaEditor'
 import { MemoriesRpc } from './Memories'
 import { NovelsRpc } from './Novels'
+import { PicturesRpc } from './Pictures'
 import { PluginsRpc } from './Plugins'
 import { StorageRpc } from './Storage'
 import { SubtitlesRpc } from './Subtitles'
@@ -31,6 +32,7 @@ export const WenbuRpc = AppearanceRpc.merge(
   SubtitlesRpc,
   LiveControlsRpc,
   InGameTextRpc,
+  PicturesRpc,
   GameGuideRpc,
   MemoriesRpc,
   MangaRpc,

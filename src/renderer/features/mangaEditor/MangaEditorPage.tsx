@@ -26,6 +26,7 @@ import {
   type TextBlock,
 } from '#contract/MangaEditor'
 import { formErrorOf } from '#lib/forms'
+import { isTyping } from '#lib/isTyping'
 import { type PayloadOf, useCoreCall } from '#lib/rpc'
 import { mangaEditorAtom } from '#lib/navigation'
 import { Button } from '#ui/button'
@@ -69,10 +70,6 @@ type Side = 'script' | 'layers'
 
 const folderName = (folder: string) =>
   folder.split(/[\\/]/).findLast((part) => part !== '') ?? folder
-
-const isTyping = (target: EventTarget | null) =>
-  target instanceof HTMLElement &&
-  (target.tagName === 'TEXTAREA' || target.tagName === 'INPUT' || target.isContentEditable)
 
 const allApproved = (lines: ReadonlyArray<Line>) =>
   lines.length > 0 && lines.every((line) => lineStatus(line) === 'approved')

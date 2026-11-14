@@ -256,20 +256,17 @@ module ::WenbuLive
 
   def self.options
     @text_options = {
-      'ui' => false, 'images' => false, 'wrap' => false, 'reflow' => false,
-      'imageStyle' => 'cover', 'originalKey' => 'backquote', 'original' => false
+      'ui' => false, 'wrap' => false, 'reflow' => false,
+      'originalKey' => 'backquote', 'original' => false
     } if @text_options.nil?
     @text_options
   end
 
-  def self.set_text_options(ui, images, wrap, reflow, image_style, original_key)
+  def self.set_text_options(ui, wrap, reflow, original_key)
     ui_changed = options['ui'] != (ui == true)
-    images_changed = options['images'] != (images == true) || options['imageStyle'] != image_style
     options['ui'] = ui == true
-    options['images'] = images == true
     options['wrap'] = wrap == true
     options['reflow'] = reflow == true
-    options['imageStyle'] = image_style == 'label' ? 'label' : 'cover'
     options['originalKey'] = original_key.to_s
 
     if ui_changed
@@ -278,7 +275,6 @@ module ::WenbuLive
       scene_windows.each { |window| refresh_window(window) }
     end
 
-    repaint_images if images_changed && respond_to?(:repaint_images)
     nil
   end
 
@@ -606,13 +602,13 @@ module ::WenbuLive
     return nil if options['original'] == (on == true)
     options['original'] = on == true
     scene_windows.each { |window| refresh_window(window) }
-    repaint_images if respond_to?(:repaint_images)
+    repaint_pictures if respond_to?(:repaint_pictures)
     nil
   end
 
-  def self.images
-    @images = {} if @images.nil?
-    @images
+  def self.pictures
+    @pictures = {} if @pictures.nil?
+    @pictures
   end
 
   def self.loaded
@@ -630,78 +626,45 @@ module ::WenbuLive
     path.sub(/\.(png|jpg|bmp)\z/i, '').downcase
   end
 
-  def self.show_images?
-    options['images'] && !options['original']
+  def self.show_pictures?
+    !options['original']
   end
 
-  def self.background_of(bitmap, x, y, w, h)
-    points = [[x - 1, y - 1], [x + w, y - 1], [x - 1, y + h], [x + w, y + h],
-              [x + w / 2, y - 1], [x + w / 2, y + h], [x - 1, y + h / 2], [x + w, y + h / 2]]
-    sum = [0, 0, 0]
-
-    points.each do |px, py|
-      color = bitmap.get_pixel([[px, 0].max, bitmap.width - 1].min, [[py, 0].max, bitmap.height - 1].min)
-      sum[0] += color.red
-      sum[1] += color.green
-      sum[2] += color.blue
-    end
-
-    sum.map { |channel| channel / points.size }
-  end
-
-  def self.plain_draw(bitmap, parts)
-    if bitmap.respond_to?(:wenbu_live_draw_text)
-      bitmap.wenbu_live_draw_text(*parts)
-    else
-      bitmap.draw_text(*parts)
-    end
+  def self.translated_picture(file)
+    @translated = {} if @translated.nil?
+    cached = @translated[file]
+    return cached unless cached.nil? || cached.disposed?
+    @translated[file] = Bitmap.new(file.gsub('\\', '/'))
   end
 
   def self.paint(bitmap, key)
-    boxes = images[key]
-    return if boxes.nil? || bitmap.disposed? || bitmap.instance_variable_get(:@wenbu_painted) == boxes
+    file = pictures[key]
+    return if file.nil? || bitmap.disposed? || bitmap.instance_variable_get(:@wenbu_painted) == file
     restore_image(bitmap)
-    copies = []
-    size = bitmap.font.size
-    color = bitmap.font.color.dup
-
-    boxes.each do |box|
-      x, y, w, h, translated = box
-      copy = Bitmap.new(w, h)
-      copy.blt(0, 0, bitmap, Rect.new(x, y, w, h))
-      copies << copy
-      background = background_of(bitmap, x, y, w, h)
-      fill = options['imageStyle'] == 'label' ? background.map { |channel| channel * 0.2 } : background
-      light = (0.299 * fill[0] + 0.587 * fill[1] + 0.114 * fill[2]) / 255.0 > 0.55
-      bitmap.fill_rect(x, y, w, h, Color.new(fill[0], fill[1], fill[2]))
-      bitmap.font.size = [(h * 0.8).floor, 10].max
-      bitmap.font.color = light ? Color.new(0, 0, 0) : Color.new(255, 255, 255)
-      draw_fitted(bitmap, translated, x, y, w, h, 1, nil) { |*parts| plain_draw(bitmap, parts) }
-    end
-
-    bitmap.font.size = size
-    bitmap.font.color = color
-    bitmap.instance_variable_set(:@wenbu_painted, boxes)
-    bitmap.instance_variable_set(:@wenbu_copies, copies)
+    translated = translated_picture(file)
+    copy = Bitmap.new(bitmap.width, bitmap.height)
+    copy.blt(0, 0, bitmap, bitmap.rect)
+    bitmap.clear
+    bitmap.blt(0, 0, translated, translated.rect)
+    bitmap.instance_variable_set(:@wenbu_painted, file)
+    bitmap.instance_variable_set(:@wenbu_copy, copy)
     painted << bitmap
   rescue StandardError
     nil
   end
 
   def self.restore_image(bitmap)
-    boxes = bitmap.instance_variable_get(:@wenbu_painted)
-    copies = bitmap.instance_variable_get(:@wenbu_copies)
-    return if boxes.nil? || copies.nil?
+    copy = bitmap.instance_variable_get(:@wenbu_copy)
+    return if copy.nil?
 
     unless bitmap.disposed?
-      boxes.each_with_index do |box, index|
-        bitmap.fill_rect(box[0], box[1], box[2], box[3], Color.new(0, 0, 0, 0))
-        bitmap.blt(box[0], box[1], copies[index], copies[index].rect)
-      end
+      bitmap.clear
+      bitmap.blt(0, 0, copy, copy.rect)
     end
 
+    copy.dispose
     bitmap.instance_variable_set(:@wenbu_painted, nil)
-    bitmap.instance_variable_set(:@wenbu_copies, nil)
+    bitmap.instance_variable_set(:@wenbu_copy, nil)
     painted.delete_if { |other| other.equal?(bitmap) }
   rescue StandardError
     nil
@@ -711,7 +674,7 @@ module ::WenbuLive
     return if bitmap.nil? || filename.to_s.empty?
     key = image_key(folder, filename)
     loaded[key] = bitmap
-    paint(bitmap, key) if show_images? && !images[key].nil?
+    paint(bitmap, key) if show_pictures? && !pictures[key].nil?
   rescue StandardError
     nil
   end
@@ -739,22 +702,36 @@ module ::WenbuLive
   def self.paint_loaded
     collect_cached
     loaded.each do |key, bitmap|
-      paint(bitmap, key) if !images[key].nil? && !bitmap.disposed?
+      paint(bitmap, key) if !pictures[key].nil? && !bitmap.disposed?
     end
   end
 
-  def self.repaint_images
+  def self.repaint_pictures
     painted.dup.each { |bitmap| restore_image(bitmap) }
-    paint_loaded if show_images?
+    paint_loaded if show_pictures?
   end
 
-  def self.add_images(list)
-    (list || []).each do |path, boxes|
-      images[path.to_s.downcase] = boxes if path.is_a?(String) && boxes.is_a?(Array)
+  def self.set_pictures(list)
+    @pictures = {}
+
+    (list || []).each do |key, file|
+      pictures[key.to_s.downcase] = file.to_s if key.is_a?(String) && file.is_a?(String)
     end
 
-    paint_loaded if show_images?
-    images.size
+    repaint_pictures
+    forget_unused
+    pictures.size
+  end
+
+  # Each approval writes a new file, so pictures loaded earlier would otherwise stay in memory.
+  def self.forget_unused
+    return if @translated.nil?
+
+    @translated.delete_if do |file, bitmap|
+      next false if pictures.value?(file)
+      bitmap.dispose unless bitmap.disposed?
+      true
+    end
   end
 
   # XP keeps its loader in RPG::Cache, VX and VX Ace in Cache.
@@ -779,7 +756,7 @@ module ::WenbuLive
   end
 
   def self.poll_original_key
-    return unless options['ui'] || options['images']
+    return unless options['ui'] || !pictures.empty?
     @key_state = Win32API.new('user32', 'GetAsyncKeyState', ['i'], 'i') if @key_state.nil?
     held = (@key_state.call(ORIGINAL_KEYS[options['originalKey']] || 0xC0) & 0x8000) != 0
     show_original(held) if held != options['original']

@@ -81,6 +81,20 @@ export const inGameTextReviewAtom = Atom.kvs({
   defaultValue: (): string | undefined => undefined,
 })
 
+export const PictureReviewOpening = Schema.Struct({
+  gameId: Schema.String,
+  picture: Schema.optional(Schema.String),
+})
+
+export type PictureReviewOpening = typeof PictureReviewOpening.Type
+
+export const pictureReviewAtom = Atom.kvs({
+  runtime: sessionStorageRuntime,
+  key: 'picture-review',
+  schema: Schema.UndefinedOr(PictureReviewOpening),
+  defaultValue: (): PictureReviewOpening | undefined => undefined,
+})
+
 export const translationReviewAtom = Atom.kvs({
   runtime: sessionStorageRuntime,
   key: 'translation-review',

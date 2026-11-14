@@ -212,4 +212,39 @@ describe('LlmClient', () => {
       assert.closeTo(completion.costUsd ?? 0, 0.021, 1e-9)
     }),
   )
+
+  it.effect('sends a picture to a model that reads images', () => {
+    const requests: Array<{ readonly url: string; readonly body: Record<string, unknown> }> = []
+
+    return Effect.gen(function* () {
+      const runtime = runtimeFor({ provider: 'deepseek', model: deepseek, reasoning: 'high' })
+      const seeing = { ...runtime, model: { ...deepseek, inputModalities: ['text', 'image'] } }
+
+      const client = yield* LlmClient.make({ presetRuntime: () => Effect.succeed(seeing) })
+
+      assert.isTrue((yield* client.describe('preset-1')).images)
+
+      yield* client.complete({
+        presetId: 'preset-1',
+        prompt: 'Read the picture.',
+        images: [{ mediaType: 'image/png', data: new Uint8Array([137, 80, 78, 71]) }],
+        feature: 'in-game-text',
+      })
+
+      const messages = requests[0]?.body['messages']
+
+      assert.deepStrictEqual(messages, [
+        {
+          role: 'user',
+          content: [
+            { type: 'text', text: 'Read the picture.' },
+            {
+              type: 'image_url',
+              image_url: { url: 'data:image/png;base64,iVBORw==', detail: 'auto' },
+            },
+          ],
+        },
+      ])
+    }).pipe(Effect.provide(capture(() => deepseekReply, requests)))
+  })
 })

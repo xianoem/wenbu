@@ -26,10 +26,8 @@
 
   state.text = state.text || {
     ui: false,
-    images: false,
     wrap: false,
     reflow: false,
-    imageStyle: 'cover',
     originalKey: 'backquote',
     original: false,
   }
@@ -684,14 +682,15 @@
       refreshWindow(window)
     })
 
-    if (live.imagesChanged) {
-      live.imagesChanged()
+    if (live.picturesChanged) {
+      live.picturesChanged()
     }
 
     return null
   }
 
-  live.images = live.images || {}
+  live.pictures = live.pictures || {}
+  live.read = live.read || {}
   live.loaded = live.loaded || {}
   live.painted = live.painted || []
 
@@ -711,104 +710,76 @@
     }
   }
 
-  function parseHex(color) {
-    var hex = /^#?([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})/i.exec(String(color || ''))
+  // A data URL keeps the bitmap's canvas untainted; a file:// image from outside the game would not.
+  function readPicture(file, done) {
+    var image = live.read[file]
 
-    return hex ? [parseInt(hex[1], 16), parseInt(hex[2], 16), parseInt(hex[3], 16)] : [0, 0, 0]
-  }
+    if (image && image.complete && image.naturalWidth > 0) {
+      done(image)
 
-  function toHex(rgb) {
-    return (
-      '#' +
-      rgb
-        .map(function (channel) {
-          var value = Math.max(0, Math.min(255, Math.round(channel)))
-
-          return (value < 16 ? '0' : '') + value.toString(16)
-        })
-        .join('')
-    )
-  }
-
-  function backgroundOf(bitmap, x, y, w, h) {
-    var width = bitmap.width || x + w + 1
-    var height = bitmap.height || y + h + 1
-
-    var points = [
-      [x - 1, y - 1],
-      [x + w, y - 1],
-      [x - 1, y + h],
-      [x + w, y + h],
-      [x + w / 2, y - 1],
-      [x + w / 2, y + h],
-      [x - 1, y + h / 2],
-      [x + w, y + h / 2],
-    ]
-
-    var sum = [0, 0, 0]
-
-    points.forEach(function (point) {
-      var px = Math.max(0, Math.min(width - 1, Math.floor(point[0])))
-      var py = Math.max(0, Math.min(height - 1, Math.floor(point[1])))
-      var rgb = parseHex(bitmap.getPixel(px, py))
-
-      sum[0] += rgb[0]
-      sum[1] += rgb[1]
-      sum[2] += rgb[2]
-    })
-
-    return [sum[0] / points.length, sum[1] / points.length, sum[2] / points.length]
-  }
-
-  function paint(bitmap, key) {
-    var boxes = live.images[key]
-    var signature = JSON.stringify(boxes)
-
-    if (!boxes || bitmap._wenbuPainted === signature) {
       return
     }
 
-    restoreImage(bitmap)
+    if (!image) {
+      image = new root.Image()
+      image.wenbuWaiting = [done]
+      live.read[file] = image
 
-    var saved = []
-    var fontSize = bitmap.fontSize
-    var textColor = bitmap.textColor
-    var outlineWidth = bitmap.outlineWidth
+      image.addEventListener('load', function () {
+        var waiting = image.wenbuWaiting
 
-    boxes.forEach(function (box) {
-      var x = box[0]
-      var y = box[1]
-      var w = box[2]
-      var h = box[3]
-      var copy = new root.Bitmap(w, h)
+        image.wenbuWaiting = []
 
-      copy.blt(bitmap, x, y, w, h, 0, 0)
-      saved.push(copy)
+        waiting.forEach(function (run) {
+          run(image)
+        })
+      })
 
-      var background = backgroundOf(bitmap, x, y, w, h)
-      var label = state.text.imageStyle === 'label'
+      image.addEventListener('error', function () {
+        delete live.read[file]
+      })
 
-      var fill = label
-        ? background.map(function (channel) {
-            return channel * 0.2
-          })
-        : background
+      image.src =
+        'data:image/png;base64,' + root.require('fs').readFileSync(file).toString('base64')
 
-      var light = (0.299 * fill[0] + 0.587 * fill[1] + 0.114 * fill[2]) / 255 > 0.55
+      return
+    }
 
-      bitmap.fillRect(x, y, w, h, toHex(fill))
-      bitmap.fontSize = Math.max(10, Math.floor(h * 0.8))
-      bitmap.textColor = light ? '#000000' : '#ffffff'
-      bitmap.outlineWidth = 0
-      drawFitted(bitmap, root.Bitmap.prototype.drawText, box[4], [box[4], x, y, w, h, 'center'])
+    image.wenbuWaiting.push(done)
+  }
+
+  function touch(bitmap) {
+    if (bitmap._setDirty) {
+      bitmap._setDirty()
+    } else if (bitmap._baseTexture && bitmap._baseTexture.update) {
+      bitmap._baseTexture.update()
+    }
+  }
+
+  function paint(bitmap, key) {
+    var file = live.pictures[key]
+
+    if (!file || bitmap._wenbuPainted === file) {
+      return
+    }
+
+    readPicture(file, function (image) {
+      if (live.pictures[key] !== file || !showPictures() || bitmap._wenbuPainted === file) {
+        return
+      }
+
+      restoreImage(bitmap)
+
+      var copy = new root.Bitmap(bitmap.width, bitmap.height)
+
+      copy.blt(bitmap, 0, 0, bitmap.width, bitmap.height, 0, 0)
+      bitmap.clear()
+      bitmap.context.drawImage(image, 0, 0, bitmap.width, bitmap.height)
+      touch(bitmap)
+      bitmap._wenbuPainted = file
+      bitmap._wenbuSaved = copy
+      live.painted.push(bitmap)
     })
-
-    bitmap.fontSize = fontSize
-    bitmap.textColor = textColor
-    bitmap.outlineWidth = outlineWidth
-    bitmap._wenbuPainted = signature
-    bitmap._wenbuSaved = { boxes: boxes, copies: saved }
-    live.painted.push(bitmap)
   }
 
   function restoreImage(bitmap) {
@@ -818,11 +789,8 @@
       return
     }
 
-    saved.boxes.forEach(function (box, index) {
-      bitmap.clearRect(box[0], box[1], box[2], box[3])
-      bitmap.blt(saved.copies[index], 0, 0, box[2], box[3], box[0], box[1])
-    })
-
+    bitmap.clear()
+    bitmap.blt(saved, 0, 0, saved.width, saved.height, 0, 0)
     bitmap._wenbuSaved = null
     bitmap._wenbuPainted = null
 
@@ -831,8 +799,8 @@
     })
   }
 
-  function showImages() {
-    return state.text.images && !state.text.original
+  function showPictures() {
+    return !state.text.original
   }
 
   function loadedImage(bitmap, folder, filename) {
@@ -844,7 +812,7 @@
 
     live.loaded[key] = bitmap
 
-    if (showImages() && live.images[key]) {
+    if (showPictures() && live.pictures[key]) {
       whenLoaded(bitmap, function () {
         paint(bitmap, key)
       })
@@ -879,12 +847,12 @@
     }
   }
 
-  function repaintImages() {
+  function repaintPictures() {
     live.painted.slice().forEach(function (bitmap) {
       restoreImage(bitmap)
     })
 
-    if (!showImages()) {
+    if (!showPictures()) {
       return
     }
 
@@ -893,7 +861,7 @@
     Object.keys(live.loaded).forEach(function (key) {
       var bitmap = live.loaded[key]
 
-      if (live.images[key]) {
+      if (live.pictures[key]) {
         whenLoaded(bitmap, function () {
           paint(bitmap, key)
         })
@@ -901,30 +869,36 @@
     })
   }
 
-  live.imagesChanged = repaintImages
+  live.picturesChanged = repaintPictures
 
-  function addImages(images) {
-    ;(images || []).forEach(function (image) {
-      if (image && typeof image[0] === 'string' && image[1]) {
-        live.images[image[0].toLowerCase()] = image[1]
+  function setPictures(pictures) {
+    live.pictures = {}
+
+    ;(pictures || []).forEach(function (picture) {
+      if (picture && typeof picture[0] === 'string' && typeof picture[1] === 'string') {
+        live.pictures[picture[0].toLowerCase()] = picture[1]
       }
     })
 
-    if (showImages()) {
-      collectCached()
+    repaintPictures()
+    forgetUnused()
 
-      Object.keys(live.loaded).forEach(function (key) {
-        var bitmap = live.loaded[key]
+    return Object.keys(live.pictures).length
+  }
 
-        if (live.images[key]) {
-          whenLoaded(bitmap, function () {
-            paint(bitmap, key)
-          })
-        }
-      })
-    }
+  // Each approval writes a new file, so pictures read earlier would otherwise stay in memory.
+  function forgetUnused() {
+    var used = {}
 
-    return Object.keys(live.images).length
+    Object.keys(live.pictures).forEach(function (key) {
+      used[live.pictures[key]] = true
+    })
+
+    Object.keys(live.read).forEach(function (file) {
+      if (!used[file]) {
+        delete live.read[file]
+      }
+    })
   }
 
   function hookImages() {
@@ -963,7 +937,9 @@
     }
 
     page.addEventListener('keydown', function (event) {
-      if ((state.text.ui || state.text.images) && matches(event) && !event.repeat) {
+      var pictures = Object.keys(live.pictures).length > 0
+
+      if ((state.text.ui || pictures) && matches(event) && !event.repeat) {
         showOriginal(true)
       }
     })
@@ -975,17 +951,12 @@
     })
   }
 
-  function setTextOptions(ui, images, wrap, reflowLines, imageStyle, originalKey) {
+  function setTextOptions(ui, wrap, reflowLines, originalKey) {
     var uiChanged = state.text.ui !== Boolean(ui)
 
-    var imagesChanged =
-      state.text.images !== Boolean(images) || state.text.imageStyle !== imageStyle
-
     state.text.ui = Boolean(ui)
-    state.text.images = Boolean(images)
     state.text.wrap = Boolean(wrap)
     state.text.reflow = Boolean(reflowLines)
-    state.text.imageStyle = imageStyle === 'label' ? 'label' : 'cover'
     state.text.originalKey = String(originalKey || 'backquote')
 
     if (uiChanged) {
@@ -995,10 +966,6 @@
       sceneWindows().forEach(function (window) {
         refreshWindow(window)
       })
-    }
-
-    if (imagesChanged && live.imagesChanged) {
-      live.imagesChanged()
     }
 
     return null
@@ -1680,7 +1647,7 @@
     setTextOptions: setTextOptions,
     takeText: takeText,
     addTexts: addTexts,
-    addImages: addImages,
+    setPictures: setPictures,
     showOriginal: showOriginal,
     actors: actors,
     actor: actor,

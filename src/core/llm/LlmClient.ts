@@ -20,6 +20,8 @@ export interface CompletionRequest extends UsagePurpose {
   readonly system?: string
   readonly history?: ReadonlyArray<{ readonly role: 'user' | 'assistant'; readonly text: string }>
   readonly prompt: string
+  /** Sent with the prompt; only for models whose description says they read images. */
+  readonly images?: ReadonlyArray<{ readonly mediaType: string; readonly data: Uint8Array }>
   readonly timeout?: Duration.Input
 }
 
@@ -35,6 +37,7 @@ export interface PresetDescription {
   readonly maxOutputTokens?: number
   readonly contextWindow?: number
   readonly price?: ModelPrice
+  readonly images?: boolean
 }
 
 export interface PresetModel {
@@ -136,7 +139,20 @@ const languageModelFor = (runtime: PresetRuntime) => {
 const toPrompt = (request: CompletionRequest): Prompt.RawInput => [
   ...(request.system === undefined ? [] : [{ role: 'system' as const, content: request.system }]),
   ...(request.history ?? []).map((message) => ({ role: message.role, content: message.text })),
-  { role: 'user' as const, content: request.prompt },
+  {
+    role: 'user' as const,
+    content:
+      request.images === undefined || request.images.length === 0
+        ? request.prompt
+        : [
+            { type: 'text' as const, text: request.prompt },
+            ...request.images.map((image) => ({
+              type: 'file' as const,
+              mediaType: image.mediaType,
+              data: image.data,
+            })),
+          ],
+  },
 ]
 
 const costOf = (model: LlmModel | undefined, usage: Completion['usage'], cachedTokens: number) => {
@@ -270,6 +286,7 @@ export class LlmClient extends Context.Service<
         maxOutputTokens: runtime.preset.maxOutputTokens,
         ...(model === undefined ? {} : { contextWindow: model.contextWindow }),
         ...(model?.price === undefined ? {} : { price: model.price }),
+        images: model?.inputModalities.includes('image') ?? false,
       } satisfies PresetDescription
     })
 

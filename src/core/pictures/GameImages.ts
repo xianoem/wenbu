@@ -1,7 +1,7 @@
 import { convertIndexedToRgb, decode } from 'fast-png'
 import { DateTime, Effect, FileSystem, Option, Path } from 'effect'
 import type { RgbaImage } from '#contract/Detections'
-import { InGameTextError } from '#contract/InGameText'
+import { PicturesError } from '#contract/Pictures'
 import type { Game } from '#contract/Library'
 import { encryptedImage, imageRoot, restorePng } from '../library/CgPack'
 import { readArchive } from '../rpgmaker/Rgss3a'
@@ -10,12 +10,12 @@ export interface GameImage {
   readonly path: string
   readonly fileSize: number
   readonly modifiedAt: string
-  readonly read: Effect.Effect<Uint8Array, InGameTextError>
+  readonly read: Effect.Effect<Uint8Array, PicturesError>
 }
 
 const textFolders = new Set(['pictures', 'system', 'titles', 'titles1', 'titles2'])
 
-const failed = (message: string) => () => new InGameTextError({ reason: 'failed', message })
+const failed = (message: string) => () => new PicturesError({ reason: 'failed', message })
 
 const isRgss = (game: Game) =>
   game.engine === 'rpg-maker-xp' ||
@@ -135,9 +135,7 @@ export const listGameImages = Effect.fn('GameImages.list')(function* (game: Game
   }
 
   const root = yield* imageRoot(game).pipe(
-    Effect.mapError(
-      (error) => new InGameTextError({ reason: 'not-found', message: error.message }),
-    ),
+    Effect.mapError((error) => new PicturesError({ reason: 'not-found', message: error.message })),
   )
 
   return yield* looseImages(root)

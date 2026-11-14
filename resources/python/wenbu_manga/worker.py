@@ -14,7 +14,13 @@ from .options import RunOptions
 
 PROTOCOL_VERSION = 2
 
-EDITOR_OPERATIONS = {"scan": "scan_page", "clean": "clean_page", "render": "render_page", "breaks": "breaks_page"}
+EDITOR_OPERATIONS = {
+    "scan": "scan_page",
+    "clean": "clean_page",
+    "render": "render_page",
+    "breaks": "breaks_page",
+    "picture": "clean_picture",
+}
 
 
 class Channel:

@@ -314,9 +314,7 @@ export function InGameTextReviewPage({ game }: { readonly game: Game }) {
   const result = useAtomValue(inGameTextsAtom(key))
   const refresh = useAtomRefresh(inGameTextsAtom(key))
 
-  const entries = AsyncResult.isSuccess(result)
-    ? result.value.filter((entry) => entry.origin !== 'image')
-    : []
+  const entries = AsyncResult.isSuccess(result) ? result.value : []
 
   const selected = entries.find((entry) => entryId(entry) === selectedId) ?? entries[0]
 

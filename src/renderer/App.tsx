@@ -12,6 +12,7 @@ import { GlossaryPage } from './features/novels/GlossaryPage'
 import { NovelPage } from './features/novels/NovelPage'
 import { NovelsPage } from './features/novels/NovelsPage'
 import { NovelReader } from './features/novels/reader/NovelReader'
+import { PictureReviewPage } from './features/pictures/PictureReviewPage'
 import { PluginsPage } from './features/plugins/PluginsPage'
 import { useApplyTheme } from './features/appearance/appearance'
 import { SettingsPage } from './features/settings/SettingsPage'
@@ -22,6 +23,7 @@ import {
   novelReaderAtom,
   openGlossaryAtom,
   openNovelAtom,
+  pictureReviewAtom,
   screenAtom,
   sidebarOpenAtom,
   viewerAtom,
@@ -83,6 +85,7 @@ export function App() {
   const editedGallery = useAtomValue(mangaEditorAtom)
   const viewing = useAtomValue(viewerAtom)
   const novelReading = useAtomValue(novelReaderAtom)
+  const pictureReview = useAtomValue(pictureReviewAtom)
   const logs = screen === 'logs'
   const editing = screen === 'manga' && editedGallery !== undefined
 
@@ -100,6 +103,15 @@ export function App() {
       <div className="flex h-screen flex-col bg-[oklch(0.11_0.004_285.823)]">
         <TitleBar />
         <GalleryViewer opening={viewing} />
+      </div>
+    )
+  }
+
+  if (screen === 'library' && pictureReview !== undefined) {
+    return (
+      <div className="flex h-screen flex-col bg-[oklch(0.11_0.004_285.823)]">
+        <TitleBar />
+        <PictureReviewPage opening={pictureReview} />
       </div>
     )
   }

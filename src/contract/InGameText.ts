@@ -1,10 +1,6 @@
 import { Schema } from 'effect'
 import { Rpc, RpcGroup } from 'effect/rpc'
 
-export const ImageStyle = Schema.Literals(['cover', 'label'])
-
-export type ImageStyle = typeof ImageStyle.Type
-
 export const WhenTooLong = Schema.Literals(['shorten', 'shrink-only'])
 
 export type WhenTooLong = typeof WhenTooLong.Type
@@ -15,8 +11,6 @@ export type OriginalKey = typeof OriginalKey.Type
 
 export const InGameTextSettings = Schema.Struct({
   uiText: Schema.Boolean,
-  imageText: Schema.Boolean,
-  imageStyle: ImageStyle,
   whenTooLong: WhenTooLong,
   wordWrap: Schema.Boolean,
   reflow: Schema.Boolean,
@@ -27,10 +21,8 @@ export type InGameTextSettings = typeof InGameTextSettings.Type
 
 export const defaultInGameTextSettings: InGameTextSettings = {
   uiText: false,
-  imageText: false,
-  imageStyle: 'cover',
   whenTooLong: 'shorten',
-  wordWrap: false,
+  wordWrap: true,
   reflow: false,
   originalKey: 'backquote',
 }
@@ -60,19 +52,13 @@ export const InGameTextEntry = Schema.Struct({
 
 export type InGameTextEntry = typeof InGameTextEntry.Type
 
-export const InGameTextFilter = Schema.Literals(['all', 'too-long', 'edited', 'images'])
+export const InGameTextFilter = Schema.Literals(['all', 'too-long', 'edited'])
 
 export type InGameTextFilter = typeof InGameTextFilter.Type
-
-export const ImageScanProgress = Schema.Struct({ done: Schema.Int, total: Schema.Int })
-
-export type ImageScanProgress = typeof ImageScanProgress.Type
 
 export const InGameTextSummary = Schema.Struct({
   strings: Schema.Int,
   tooLong: Schema.Int,
-  images: Schema.Struct({ withText: Schema.Int, total: Schema.Int }),
-  scan: Schema.optional(ImageScanProgress),
   notice: Schema.optional(Schema.String),
 })
 
@@ -117,6 +103,4 @@ export class InGameTextRpc extends RpcGroup.make(
     success: InGameTextEntry,
     error: InGameTextError,
   }),
-  Rpc.make('scanGameImages', { payload: ByGame, error: InGameTextError }),
-  Rpc.make('cancelImageScan', { payload: ByGame }),
 ) {}

@@ -35,7 +35,7 @@ import {
   defaultLettering,
 } from '#contract/MangaEditor'
 import { ScreenAiOcr } from '../detections/ScreenAiOcr'
-import { cleanLine } from '../ingametext/ImageOcr'
+import { cleanLine } from '../pictures/ImageOcr'
 import { type Completion, LlmClient } from '../llm/LlmClient'
 import { mangaSettingsKey, readableError } from '../manga/Manga'
 import { workerOptions } from '../manga/MangaOptions'

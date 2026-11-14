@@ -23,6 +23,7 @@ from .errors import describe
 from .inpainting import inpaint_regions
 from .jobs import PageJob
 from .options import RunOptions
+from .pictures import alpha_needs_inpainting, line_colours, merged, picture_mask
 from .save import save_page
 
 Translate = Callable[[int, list[str]], Awaitable[list[str]]]
@@ -289,6 +290,36 @@ class Pipeline(MangaTranslatorLocal):
 
         return {}
 
+    async def clean_picture(self, message: dict[str, Any]) -> dict[str, Any]:
+        """Inpaints colour and transparency apart, so text on a transparent label leaves transparency behind."""
+
+        source, output = text_field(message, "source"), text_field(message, "output")
+        boxes = [block["box"] for block in parse_blocks(message.get("blocks"))]
+        rgba = await asyncio.to_thread(open_rgba, source)
+        mask = await asyncio.to_thread(picture_mask, rgba, boxes)
+        colours = [line_colours(rgba, box) for box in boxes]
+
+        if not mask.any():
+            await asyncio.to_thread(save_png, rgba, output)
+
+            return {"lines": colours}
+
+        ctx = Context()
+        ctx.img_rgb = np.ascontiguousarray(rgba[..., :3])
+        ctx.mask = mask
+        rgb = await self.on_gpu(self._run_inpainting, ctx)
+        alpha = rgba[..., 3]
+
+        if alpha_needs_inpainting(rgba, mask):
+            alpha_ctx = Context()
+            alpha_ctx.img_rgb = np.ascontiguousarray(np.repeat(alpha[..., None], 3, axis=2))
+            alpha_ctx.mask = mask
+            alpha = (await self.on_gpu(self._run_inpainting, alpha_ctx)).mean(axis=2).astype(np.uint8)
+
+        await asyncio.to_thread(save_png, merged(rgba, mask, rgb, alpha), output)
+
+        return {"lines": colours}
+
     async def render_page(self, message: dict[str, Any]) -> dict[str, Any]:
         source, output = text_field(message, "source"), text_field(message, "output")
         cleaned_path = message.get("cleaned") if isinstance(message.get("cleaned"), str) else ""
@@ -477,6 +508,11 @@ def open_rgb(path: str):
         return load_image(image)
     finally:
         image.close()
+
+
+def open_rgba(path: str) -> np.ndarray:
+    with Image.open(path) as image:
+        return np.array(image.convert("RGBA"))
 
 
 def open_mask(path: str, shape) -> np.ndarray:
