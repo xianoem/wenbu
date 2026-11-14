@@ -1,5 +1,16 @@
 [
   {
+    "version": "0.1.4",
+    "date": "2026-11-14",
+    "changes": [
+      {
+        "kind": "fixed",
+        "area": "app",
+        "text": "Block browser shortcuts in every window"
+      }
+    ]
+  },
+  {
     "version": "0.1.3",
     "date": "2026-11-13",
     "changes": [
