@@ -12,6 +12,7 @@ import {
   dialog,
   globalShortcut,
   ipcMain,
+  Menu,
   MessageChannelMain,
   nativeImage,
   nativeTheme,
@@ -715,6 +716,7 @@ const servePageImages = () =>
   })
 
 const start = Effect.gen(function* () {
+  Menu.setApplicationMenu(null)
   yield* Effect.promise(() => app.whenReady())
 
   servePageImages()
