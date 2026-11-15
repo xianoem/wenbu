@@ -113,11 +113,11 @@ export class Detector extends Context.Service<
 
         const session = yield* sessionFor(height, width)
 
-        const outputs = yield* Effect.tryPromise({
-          try: () =>
-            session.run({ image: new onnx.ort.Tensor('float32', pixels, [1, 3, height, width]) }),
-          catch: (error) => failed(`Text detection failed: ${String(error)}`),
-        })
+        const outputs = yield* onnx.run(
+          session,
+          { image: new onnx.ort.Tensor('float32', pixels, [1, 3, height, width]) },
+          'Text detection failed',
+        )
 
         const db = outputs['db']?.data
         const mask = outputs['mask']?.data

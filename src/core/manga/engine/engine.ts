@@ -3,10 +3,16 @@ import * as NodeServices from '@effect/platform-node/NodeServices'
 import { Cause, Effect, Layer, Option, Predicate, Queue, Schema, Stream } from 'effect'
 import { PROTOCOL, WorkerLine, WorkerMessage } from '../MangaRuntime'
 import { EngineOps } from './EngineOps'
+import { Detector } from './Detector'
 import { Images } from './Images'
 import { Inpainter } from './Inpaint'
+import { Lettering } from './Lettering'
+import { MangaCv } from './MangaCv'
 import { Onnx } from './Onnx'
 import { OpenCv } from './OpenCv'
+import { Reader } from './Reader'
+import { Scanner } from './Scanner'
+import { ScreenAiOcr } from '../../detections/ScreenAiOcr'
 
 // onnxruntime-node 1.31 turns float16 data into Float16Array when the global exists, then its
 // native binding refuses that array type. Removing the global before it loads keeps Uint16Array.
@@ -100,9 +106,13 @@ process.parentPort.once('message', (event) => {
     serve(port).pipe(
       Effect.provide(
         EngineOps.layer.pipe(
-          Layer.provideMerge(Inpainter.layer),
+          Layer.provideMerge(Scanner.layer),
+          Layer.provideMerge(ScreenAiOcr.live),
+          Layer.provideMerge(
+            Layer.mergeAll(Inpainter.layer, Detector.layer, Reader.layer, Lettering.layer),
+          ),
           Layer.provideMerge(Images.layer(codecs)),
-          Layer.provideMerge(Layer.mergeAll(Onnx.layer, OpenCv.layer)),
+          Layer.provideMerge(Layer.mergeAll(Onnx.layer, OpenCv.layer, MangaCv.live)),
           Layer.provideMerge(NodeServices.layer),
           Layer.tapCause(stop),
         ),

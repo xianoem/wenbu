@@ -1,0 +1,107 @@
+[
+  {
+    "text": "「こんにちは」",
+    "fixed": "「こんにちは」",
+    "valuable": true
+  },
+  {
+    "text": "（えっ!?",
+    "fixed": "えっ!?",
+    "valuable": true
+  },
+  {
+    "text": "ほら)",
+    "fixed": "ほら",
+    "valuable": true
+  },
+  {
+    "text": "[test}",
+    "fixed": "[test]",
+    "valuable": true
+  },
+  {
+    "text": "  “quoted”  ",
+    "fixed": "“quoted”",
+    "valuable": true
+  },
+  {
+    "text": "『二重』」",
+    "fixed": "『二重』",
+    "valuable": true
+  },
+  {
+    "text": "<<a>>",
+    "fixed": "<<a>>",
+    "valuable": true
+  },
+  {
+    "text": "'single",
+    "fixed": "single",
+    "valuable": true
+  },
+  {
+    "text": "\"q\"",
+    "fixed": "q",
+    "valuable": true
+  },
+  {
+    "text": "〈ok】",
+    "fixed": "〈ok〉",
+    "valuable": true
+  },
+  {
+    "text": "…",
+    "fixed": "…",
+    "valuable": false
+  },
+  {
+    "text": "123!!",
+    "fixed": "123!!",
+    "valuable": false
+  },
+  {
+    "text": "②③",
+    "fixed": "②③",
+    "valuable": false
+  },
+  {
+    "text": "ドキ",
+    "fixed": "ドキ",
+    "valuable": true
+  },
+  {
+    "text": "♡♡",
+    "fixed": "♡♡",
+    "valuable": true
+  },
+  {
+    "text": "ー",
+    "fixed": "ー",
+    "valuable": true
+  },
+  {
+    "text": "・・・",
+    "fixed": "・・・",
+    "valuable": false
+  },
+  {
+    "text": "﻿ハイ",
+    "fixed": "﻿ハイ",
+    "valuable": true
+  },
+  {
+    "text": "abc　",
+    "fixed": "abc",
+    "valuable": true
+  },
+  {
+    "text": "（（あ）",
+    "fixed": "（あ）",
+    "valuable": true
+  },
+  {
+    "text": "a）b（c",
+    "fixed": "abc",
+    "valuable": true
+  }
+]

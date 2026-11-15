@@ -4,6 +4,7 @@ import { roundHalfEven } from './DbBoxes'
 import type { RgbImage } from './Images'
 import { Onnx } from './Onnx'
 import { OpenCv, type Cv } from './OpenCv'
+import { mapBytes } from './Bytes'
 
 /**
  * Region inpainting as the plugin does it (wenbu_manga/inpainting.py and LaMa's _infer): the mask's
@@ -117,7 +118,7 @@ export const crops = (
     height,
     width,
     cv.CV_8UC1,
-    Uint8Array.from(mask, (value) => (value >= 127 ? 1 : 0)),
+    mapBytes(mask, (value) => (value >= 127 ? 1 : 0)),
   )
 
   const labels = new cv.Mat()
@@ -237,14 +238,14 @@ export class Inpainter extends Context.Service<
           }
         }
 
-        const result = yield* Effect.tryPromise({
-          try: () =>
-            session.run({
-              image: new onnx.ort.Tensor('float32', pixels, [1, 3, padH, padW]),
-              mask: new onnx.ort.Tensor('float32', holes, [1, 1, padH, padW]),
-            }),
-          catch: (error) => failed(`Inpainting failed: ${String(error)}`),
-        })
+        const result = yield* onnx.run(
+          session,
+          {
+            image: new onnx.ort.Tensor('float32', pixels, [1, 3, padH, padW]),
+            mask: new onnx.ort.Tensor('float32', holes, [1, 1, padH, padW]),
+          },
+          'Inpainting failed',
+        )
 
         const output = result['output']?.data
 

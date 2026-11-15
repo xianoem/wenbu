@@ -1,0 +1,80 @@
+[
+  {
+    "region": {
+      "xyxy": [454, 33, 476, 75],
+      "text": "はじめてだけど…",
+      "translation": "It's my first time, but…",
+      "vertical": true
+    },
+    "box": [441, 26, 489, 82],
+    "maskSum": 2218,
+    "constrained": [445, 26, 489, 82],
+    "constrainedSum": 2180,
+    "safe": [4, 7, 32, 42]
+  },
+  {
+    "region": {
+      "xyxy": [96, 26, 119, 89],
+      "text": "ちっとも痛くないわ♡",
+      "translation": "It doesn't hurt one bit♡",
+      "vertical": true
+    },
+    "box": [80, 20, 135, 95],
+    "maskSum": 3112,
+    "constrained": [80, 20, 135, 95],
+    "constrainedSum": 3112,
+    "safe": [10, 7, 36, 62]
+  },
+  {
+    "region": {
+      "xyxy": [409, 49, 432, 103],
+      "text": "とっても…うれしい♡",
+      "translation": "I'm so… happy♡",
+      "vertical": true
+    },
+    "box": [393, 42, 448, 110],
+    "maskSum": 3120,
+    "constrained": [393, 42, 441, 110],
+    "constrainedSum": 2756,
+    "safe": [9, 8, 34, 54]
+  },
+  {
+    "region": {
+      "xyxy": [37, 54, 60, 126],
+      "text": "とっても…気持ちいい…♡",
+      "translation": "It feels… so good…♡",
+      "vertical": true
+    },
+    "box": [19, 48, 78, 132],
+    "maskSum": 4081,
+    "constrained": [19, 48, 78, 132],
+    "constrainedSum": 4081,
+    "safe": [7, 8, 44, 70]
+  },
+  {
+    "region": {
+      "xyxy": [455, 151, 464, 202],
+      "text": "すご…く…",
+      "translation": "So… much…",
+      "vertical": true
+    },
+    "box": [450, 150, 469, 203],
+    "maskSum": 631,
+    "constrained": [450, 150, 469, 203],
+    "constrainedSum": 631,
+    "safe": [6, 6, 6, 20]
+  },
+  {
+    "region": {
+      "xyxy": [362, 194, 388, 265],
+      "text": "気持ち…いいのぉ…♡",
+      "translation": "It feels… so good…♡",
+      "vertical": true
+    },
+    "box": [343, 187, 407, 272],
+    "maskSum": 4027,
+    "constrained": [343, 187, 407, 272],
+    "constrainedSum": 4027,
+    "safe": [12, 7, 42, 72]
+  }
+]

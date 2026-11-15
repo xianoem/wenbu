@@ -1,0 +1,503 @@
+[
+  {
+    "text": "I never thought I'd see you here... Did you come all this way just for me?",
+    "tokens": [
+      ["I", false],
+      ["never", false],
+      ["thought", false],
+      ["I'd", false],
+      ["see", false],
+      ["you", false],
+      ["here", false],
+      ["...", false],
+      ["Did", false],
+      ["you", false],
+      ["come", false],
+      ["all", false],
+      ["this", false],
+      ["way", false],
+      ["just", false],
+      ["for", false],
+      ["me?", false]
+    ],
+    "segments": [
+      ["I never thought I'd see you here... Did you come all this way just for me?", "regular"]
+    ],
+    "breaks": {
+      "balanced-True-True-80.0": [
+        "I never",
+        "thought",
+        "I'd see",
+        "you here",
+        "... Did",
+        "you come",
+        "all this",
+        "way just",
+        "for me?"
+      ],
+      "balanced-False-False-80.0": [
+        "I never",
+        "thought",
+        "I'd see",
+        "you here",
+        "... Did",
+        "you come",
+        "all this",
+        "way just",
+        "for me?"
+      ],
+      "greedy-True-False-80.0": [
+        "I never",
+        "thought",
+        "I'd see",
+        "you here",
+        "... Did",
+        "you come",
+        "all this",
+        "way just",
+        "for me?"
+      ],
+      "balanced-True-True-160.0": [
+        "I never thought",
+        "I'd see you here",
+        "... Did you come",
+        "all this way",
+        "just for me?"
+      ],
+      "balanced-False-False-160.0": [
+        "I never thought",
+        "I'd see you here",
+        "... Did you come",
+        "all this way",
+        "just for me?"
+      ],
+      "greedy-True-False-160.0": [
+        "I never thought",
+        "I'd see you here",
+        "... Did you come",
+        "all this way just",
+        "for me?"
+      ],
+      "balanced-True-True-320.0": [
+        "I never thought I'd see",
+        "you here... Did you come",
+        "all this way just for me?"
+      ],
+      "balanced-False-False-320.0": [
+        "I never thought I'd see",
+        "you here... Did you come",
+        "all this way just for me?"
+      ],
+      "greedy-True-False-320.0": [
+        "I never thought I'd see you here...",
+        "Did you come all this way just for",
+        "me?"
+      ]
+    },
+    "hyphen": {
+      "I": null,
+      "never": null,
+      "thought": null,
+      "I'd": null,
+      "see": null,
+      "you": null,
+      "here...": null,
+      "Did": null,
+      "come": null,
+      "all": null,
+      "this": null,
+      "way": null,
+      "just": null,
+      "for": null,
+      "me?": null
+    }
+  },
+  {
+    "text": "WHAT?! You're kidding, right? *This* is the **legendary** sword?",
+    "tokens": [
+      ["WHAT?!", false],
+      ["You're", false],
+      ["kidding,", false],
+      ["right?", false],
+      ["*This*", true],
+      ["is", false],
+      ["the", false],
+      ["**legendary**", true],
+      ["sword?", false]
+    ],
+    "segments": [
+      ["WHAT?! You're kidding, right? ", "regular"],
+      ["This", "italic"],
+      [" is the ", "regular"],
+      ["legendary", "bold"],
+      [" sword?", "regular"]
+    ],
+    "breaks": {
+      "balanced-True-True-80.0": null,
+      "balanced-False-False-80.0": null,
+      "greedy-True-False-80.0": null,
+      "balanced-True-True-160.0": [
+        "WHAT?! You're",
+        "kidding, right?",
+        "*This* is the",
+        "**legendary**",
+        "sword?"
+      ],
+      "balanced-False-False-160.0": [
+        "WHAT?! You're",
+        "kidding, right?",
+        "*This* is the",
+        "**legendary**",
+        "sword?"
+      ],
+      "greedy-True-False-160.0": [
+        "WHAT?! You're",
+        "kidding, right?",
+        "*This* is the",
+        "**legendary**",
+        "sword?"
+      ],
+      "balanced-True-True-320.0": [
+        "WHAT?! You're kidding, right?",
+        "*This* is the **legendary** sword?"
+      ],
+      "balanced-False-False-320.0": [
+        "WHAT?! You're kidding, right?",
+        "*This* is the **legendary** sword?"
+      ],
+      "greedy-True-False-320.0": [
+        "WHAT?! You're kidding, right?",
+        "*This* is the **legendary** sword?"
+      ]
+    },
+    "hyphen": {
+      "WHAT?!": null,
+      "You're": null,
+      "kidding,": null,
+      "right?": null,
+      "*This*": null,
+      "is": null,
+      "the": null,
+      "**legendary**": ["**lege-", "ndary**"],
+      "sword?": null
+    }
+  },
+  {
+    "text": "Extraordinarily-complicated misunderstanding between us",
+    "tokens": [
+      ["Extraordinarily-complicated", false],
+      ["misunderstanding", false],
+      ["between", false],
+      ["us", false]
+    ],
+    "segments": [["Extraordinarily-complicated misunderstanding between us", "regular"]],
+    "breaks": {
+      "balanced-True-True-80.0": null,
+      "balanced-False-False-80.0": null,
+      "greedy-True-False-80.0": null,
+      "balanced-True-True-160.0": null,
+      "balanced-False-False-160.0": null,
+      "greedy-True-False-160.0": null,
+      "balanced-True-True-320.0": ["Extraordinarily-complicated", "misunderstanding between us"],
+      "balanced-False-False-320.0": ["Extraordinarily-complicated", "misunderstanding between us"],
+      "greedy-True-False-320.0": ["Extraordinarily-complicated", "misunderstanding between us"]
+    },
+    "hyphen": {
+      "Extraordinarily-complicated": null,
+      "misunderstanding": ["misunder-", "standing"],
+      "between": null,
+      "us": null
+    }
+  },
+  {
+    "text": "「おはよう」って言ったじゃん！ちゃんと聞いてた？",
+    "tokens": [
+      ["「お", false],
+      ["は", false],
+      ["よ", false],
+      ["う」っ", false],
+      ["て", false],
+      ["言っ", false],
+      ["た", false],
+      ["じゃ", false],
+      ["ん！", false],
+      ["ちゃ", false],
+      ["ん", false],
+      ["と", false],
+      ["聞", false],
+      ["い", false],
+      ["て", false],
+      ["た？", false]
+    ],
+    "segments": [["「おはよう」って言ったじゃん！ちゃんと聞いてた？", "regular"]],
+    "breaks": {
+      "balanced-True-True-80.0": [
+        "「おはよ",
+        "う」って",
+        "言ったじゃ",
+        "ん！ちゃ",
+        "んと聞い",
+        "てた？"
+      ],
+      "balanced-False-False-80.0": [
+        "「おはよ",
+        "う」って",
+        "言ったじゃ",
+        "ん！ちゃ",
+        "んと聞い",
+        "てた？"
+      ],
+      "greedy-True-False-80.0": [
+        "「おはよ",
+        "う」って",
+        "言ったじゃ",
+        "ん！ちゃん",
+        "と聞いて",
+        "た？"
+      ],
+      "balanced-True-True-160.0": ["「おはよう」って", "言ったじゃん！ちゃ", "んと聞いてた？"],
+      "balanced-False-False-160.0": ["「おはよう」って", "言ったじゃん！ちゃ", "んと聞いてた？"],
+      "greedy-True-False-160.0": ["「おはよう」って言った", "じゃん！ちゃんと聞いて", "た？"],
+      "balanced-True-True-320.0": ["「おはよう」って言ったじゃ", "ん！ちゃんと聞いてた？"],
+      "balanced-False-False-320.0": ["「おはよう」って言ったじゃ", "ん！ちゃんと聞いてた？"],
+      "greedy-True-False-320.0": ["「おはよう」って言ったじゃん！ちゃんと聞いて", "た？"]
+    },
+    "hyphen": {
+      "「おはよう」って言ったじゃん！ちゃんと聞いてた？": null
+    }
+  },
+  {
+    "text": "Hmm... ...",
+    "tokens": [
+      ["Hmm", false],
+      ["...", false],
+      ["...", false]
+    ],
+    "segments": [["Hmm... ...", "regular"]],
+    "breaks": {
+      "balanced-True-True-80.0": ["Hmm", "......"],
+      "balanced-False-False-80.0": ["Hmm", "......"],
+      "greedy-True-False-80.0": ["Hmm...", "..."],
+      "balanced-True-True-160.0": ["Hmm......"],
+      "balanced-False-False-160.0": ["Hmm......"],
+      "greedy-True-False-160.0": ["Hmm......"],
+      "balanced-True-True-320.0": ["Hmm......"],
+      "balanced-False-False-320.0": ["Hmm......"],
+      "greedy-True-False-320.0": ["Hmm......"]
+    },
+    "hyphen": {
+      "Hmm...": null,
+      "...": null
+    }
+  },
+  {
+    "text": "The (quick) brown fox—jumps over \"the\" lazy dog's back, again and again!",
+    "tokens": [
+      ["The", false],
+      ["(quick)", false],
+      ["brown", false],
+      ["fox—jumps", false],
+      ["over", false],
+      ["\"the\"", false],
+      ["lazy", false],
+      ["dog's", false],
+      ["back,", false],
+      ["again", false],
+      ["and", false],
+      ["again!", false]
+    ],
+    "segments": [
+      ["The (quick) brown fox—jumps over \"the\" lazy dog's back, again and again!", "regular"]
+    ],
+    "breaks": {
+      "balanced-True-True-80.0": null,
+      "balanced-False-False-80.0": null,
+      "greedy-True-False-80.0": null,
+      "balanced-True-True-160.0": [
+        "The (quick)",
+        "brown fox—jumps",
+        "over \"the\" lazy",
+        "dog's back,",
+        "again and again!"
+      ],
+      "balanced-False-False-160.0": [
+        "The (quick)",
+        "brown fox—jumps",
+        "over \"the\" lazy",
+        "dog's back,",
+        "again and again!"
+      ],
+      "greedy-True-False-160.0": [
+        "The (quick) brown",
+        "fox—jumps over",
+        "\"the\" lazy dog's",
+        "back, again and",
+        "again!"
+      ],
+      "balanced-True-True-320.0": [
+        "The (quick) brown fox—jumps",
+        "over \"the\" lazy dog's",
+        "back, again and again!"
+      ],
+      "balanced-False-False-320.0": [
+        "The (quick) brown fox—jumps",
+        "over \"the\" lazy dog's",
+        "back, again and again!"
+      ],
+      "greedy-True-False-320.0": [
+        "The (quick) brown fox—jumps over",
+        "\"the\" lazy dog's back, again and",
+        "again!"
+      ]
+    },
+    "hyphen": {
+      "The": null,
+      "(quick)": null,
+      "brown": null,
+      "fox—jumps": null,
+      "over": null,
+      "\"the\"": null,
+      "lazy": null,
+      "dog's": null,
+      "back,": null,
+      "again": null,
+      "and": null,
+      "again!": null
+    }
+  },
+  {
+    "text": "A",
+    "tokens": [["A", false]],
+    "segments": [["A", "regular"]],
+    "breaks": {
+      "balanced-True-True-80.0": ["A"],
+      "balanced-False-False-80.0": ["A"],
+      "greedy-True-False-80.0": ["A"],
+      "balanced-True-True-160.0": ["A"],
+      "balanced-False-False-160.0": ["A"],
+      "greedy-True-False-160.0": ["A"],
+      "balanced-True-True-320.0": ["A"],
+      "balanced-False-False-320.0": ["A"],
+      "greedy-True-False-320.0": ["A"]
+    },
+    "hyphen": {
+      "A": null
+    }
+  },
+  {
+    "text": "ほら、こっち…来て。",
+    "tokens": [
+      ["ほ", false],
+      ["ら、", false],
+      ["こっ", false],
+      ["ち", false],
+      ["…", false],
+      ["来", false],
+      ["て。", false]
+    ],
+    "segments": [["ほら、こっち…来て。", "regular"]],
+    "breaks": {
+      "balanced-True-True-80.0": ["ほら、こっ", "ち … 来て。"],
+      "balanced-False-False-80.0": ["ほら、こっ", "ち … 来て。"],
+      "greedy-True-False-80.0": ["ほら、こっ", "ち … 来て。"],
+      "balanced-True-True-160.0": ["ほら、こっち … 来て。"],
+      "balanced-False-False-160.0": ["ほら、こっち … 来て。"],
+      "greedy-True-False-160.0": ["ほら、こっち … 来て。"],
+      "balanced-True-True-320.0": ["ほら、こっち … 来て。"],
+      "balanced-False-False-320.0": ["ほら、こっち … 来て。"],
+      "greedy-True-False-320.0": ["ほら、こっち … 来て。"]
+    },
+    "hyphen": {
+      "ほら、こっち…来て。": null
+    }
+  },
+  {
+    "text": "Supercalifragilisticexpialidocious",
+    "tokens": [["Supercalifragilisticexpialidocious", false]],
+    "segments": [["Supercalifragilisticexpialidocious", "regular"]],
+    "breaks": {
+      "balanced-True-True-80.0": null,
+      "balanced-False-False-80.0": null,
+      "greedy-True-False-80.0": null,
+      "balanced-True-True-160.0": null,
+      "balanced-False-False-160.0": null,
+      "greedy-True-False-160.0": null,
+      "balanced-True-True-320.0": ["Supercalifragilisticexpialidocious"],
+      "balanced-False-False-320.0": ["Supercalifragilisticexpialidocious"],
+      "greedy-True-False-320.0": ["Supercalifragilisticexpialidocious"]
+    },
+    "hyphen": {
+      "Supercalifragilisticexpialidocious": null
+    }
+  },
+  {
+    "text": "Short words go here and there and everywhere until the line is full",
+    "tokens": [
+      ["Short", false],
+      ["words", false],
+      ["go", false],
+      ["here", false],
+      ["and", false],
+      ["there", false],
+      ["and", false],
+      ["everywhere", false],
+      ["until", false],
+      ["the", false],
+      ["line", false],
+      ["is", false],
+      ["full", false]
+    ],
+    "segments": [
+      ["Short words go here and there and everywhere until the line is full", "regular"]
+    ],
+    "breaks": {
+      "balanced-True-True-80.0": null,
+      "balanced-False-False-80.0": null,
+      "greedy-True-False-80.0": null,
+      "balanced-True-True-160.0": [
+        "Short words go",
+        "here and there and",
+        "everywhere until",
+        "the line is full"
+      ],
+      "balanced-False-False-160.0": [
+        "Short words go",
+        "here and there and",
+        "everywhere until",
+        "the line is full"
+      ],
+      "greedy-True-False-160.0": [
+        "Short words go",
+        "here and there and",
+        "everywhere until",
+        "the line is full"
+      ],
+      "balanced-True-True-320.0": [
+        "Short words go here and there and",
+        "everywhere until the line is full"
+      ],
+      "balanced-False-False-320.0": [
+        "Short words go here and there and",
+        "everywhere until the line is full"
+      ],
+      "greedy-True-False-320.0": [
+        "Short words go here and there and",
+        "everywhere until the line is full"
+      ]
+    },
+    "hyphen": {
+      "Short": null,
+      "words": null,
+      "go": null,
+      "here": null,
+      "and": null,
+      "there": null,
+      "everywhere": ["every-", "where"],
+      "until": null,
+      "the": null,
+      "line": null,
+      "is": null,
+      "full": null
+    }
+  }
+]

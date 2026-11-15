@@ -379,7 +379,7 @@ const run = async () => {
 
   await native.ready
 
-  const workers = [connect(pythonWorker()), native]
+  const workers = [native, connect(pythonWorker())]
   const report = []
 
   for (const worker of workers) {
@@ -392,54 +392,82 @@ const run = async () => {
     const results = {}
     const file = (worker, kind) => join(out, worker, `${index}-${kind}.png`)
 
-    for (const worker of workers) {
-      const steps = {}
+    const cleaning = page.blocks.map((block) => ({
+      box: block.box,
+      drawn: block.drawn,
+      method: 'inpaint',
+      ...(block.fg === undefined ? {} : { fg: block.fg }),
+      ...(block.bg === undefined ? {} : { bg: block.bg }),
+    }))
 
-      if (ops.has('scan')) {
-        steps.scan = await worker.editor({ op: 'scan', source, mask: file(worker.name, 'mask') })
-      }
-
-      const cleaning = page.blocks.map((block) => ({
+    const lettering = page.blocks
+      .filter((block) => block.translation.trim() !== '')
+      .map((block) => ({
         box: block.box,
-        drawn: block.drawn,
-        method: 'inpaint',
+        text: block.text,
+        translation: block.translation,
+        vertical: block.vertical,
         ...(block.fg === undefined ? {} : { fg: block.fg }),
         ...(block.bg === undefined ? {} : { bg: block.bg }),
+        ...(block.fontSize === undefined ? {} : { fontSize: block.fontSize }),
       }))
 
-      const lettering = page.blocks
-        .filter((block) => block.translation.trim() !== '')
-        .map((block) => ({
-          box: block.box,
-          text: block.text,
+    const requests = {
+      scan: (worker) => ({ op: 'scan', source, mask: file(worker.name, 'mask') }),
+      clean: (worker) => ({
+        op: 'clean',
+        source,
+        mask: file('python', 'mask'),
+        output: file(worker.name, 'cleaned'),
+        blocks: cleaning,
+      }),
+      render: (worker) => ({
+        op: 'render',
+        source,
+        output: file(worker.name, 'rendered'),
+        cleaned: file('python', 'cleaned'),
+        blocks: lettering,
+      }),
+    }
+
+    for (const worker of workers) {
+      results[worker.name] = {}
+    }
+
+    // One op at a time on both runtimes, so the GPU never runs both at once, and the clean and
+    // render steps find the Python mask and cleaned page they read.
+    for (const op of ['scan', 'clean', 'render']) {
+      if (!ops.has(op)) {
+        continue
+      }
+
+      for (const worker of workers) {
+        results[worker.name][op] = await worker.editor(requests[op](worker))
+      }
+    }
+
+    if (ops.has('breaks')) {
+      const breaks = []
+
+      for (const block of lettering) {
+        const answers = {}
+
+        for (const worker of workers) {
+          answers[worker.name] = await worker.editor({ op: 'breaks', source, blocks: [block] })
+        }
+
+        const candidates = (answer) =>
+          answer.event === 'editor-done' ? JSON.stringify(answer.result.candidates) : answer.message
+
+        breaks.push({
           translation: block.translation,
-          vertical: block.vertical,
-          ...(block.fg === undefined ? {} : { fg: block.fg }),
-          ...(block.bg === undefined ? {} : { bg: block.bg }),
-          ...(block.fontSize === undefined ? {} : { fontSize: block.fontSize }),
-        }))
-
-      if (ops.has('clean')) {
-        steps.clean = await worker.editor({
-          op: 'clean',
-          source,
-          mask: file('python', 'mask'),
-          output: file(worker.name, 'cleaned'),
-          blocks: cleaning,
+          same: candidates(answers.python) === candidates(answers.native),
+          python: candidates(answers.python),
+          native: candidates(answers.native),
         })
       }
 
-      if (ops.has('render')) {
-        steps.render = await worker.editor({
-          op: 'render',
-          source,
-          output: file(worker.name, 'rendered'),
-          cleaned: file('python', 'cleaned'),
-          blocks: lettering,
-        })
-      }
-
-      results[worker.name] = steps
+      entry.breaks = breaks
     }
 
     for (const op of ['scan', 'clean', 'render']) {
@@ -491,6 +519,13 @@ const run = async () => {
 
 const summary = (report) => {
   const lines = []
+  const breaks = report.flatMap((entry) => entry.breaks ?? [])
+
+  if (breaks.length > 0) {
+    lines.push(
+      `breaks: ${breaks.filter((value) => value.same).length}/${breaks.length} blocks with the same candidates`,
+    )
+  }
 
   for (const op of ['scan', 'clean', 'render']) {
     const entries = report.map((entry) => entry.ops[op]).filter((value) => value !== undefined)

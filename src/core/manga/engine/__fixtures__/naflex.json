@@ -1,0 +1,72 @@
+[
+  {
+    "box": [0, 0, 97, 61],
+    "patches": 256,
+    "size": [192, 320, 12, 20],
+    "pixels": "f3f8c1ffbe1d5ed3e673545fbf443d0e7b0842bd547bbc8658e99553fa201e9e",
+    "weights": "c6385c08482935db9ac28c2a4bfb9a2c4bf99c8a251f5f7bd897fdb2b6998ff8"
+  },
+  {
+    "box": [0, 0, 97, 61],
+    "patches": 512,
+    "size": [256, 400, 16, 25],
+    "pixels": "3db68f9688705948ca1ab659113b13ed7e5f997d1d583d191be4718c126f4d68",
+    "weights": "e6c73cdf5eafdca353073bce045e71e640bd09b209a308512a3acfb74597eb61"
+  },
+  {
+    "box": [5, 3, 20, 58],
+    "patches": 256,
+    "size": [240, 64, 15, 4],
+    "pixels": "723768a2a0b8dc45da7f9c976be701441a54ea3a725f34e9da635fd8f3dd9c7b",
+    "weights": "ac8e9b3eef70b1647bee9a0403dcb002f34251fdb69e782b0e9b5bb9713f33ed"
+  },
+  {
+    "box": [5, 3, 20, 58],
+    "patches": 512,
+    "size": [240, 64, 15, 4],
+    "pixels": "723768a2a0b8dc45da7f9c976be701441a54ea3a725f34e9da635fd8f3dd9c7b",
+    "weights": "ac8e9b3eef70b1647bee9a0403dcb002f34251fdb69e782b0e9b5bb9713f33ed"
+  },
+  {
+    "box": [0, 10, 97, 22],
+    "patches": 256,
+    "size": [48, 400, 3, 25],
+    "pixels": "e4e3769d857dbad12e66dda856515bd9e5e0e2a7ce6d87e8edcdc1809fcef3ec",
+    "weights": "71837eb0091f597f0148c9e2499262eae0ece6da04ef6bf5625b71dd7846ef75"
+  },
+  {
+    "box": [0, 10, 97, 22],
+    "patches": 512,
+    "size": [48, 400, 3, 25],
+    "pixels": "e4e3769d857dbad12e66dda856515bd9e5e0e2a7ce6d87e8edcdc1809fcef3ec",
+    "weights": "71837eb0091f597f0148c9e2499262eae0ece6da04ef6bf5625b71dd7846ef75"
+  },
+  {
+    "box": [30, 20, 31, 21],
+    "patches": 256,
+    "size": [112, 112, 7, 7],
+    "pixels": "f278d511427329d16ae4ea3daa35f191dfed66e46f958b60abc6d0fb32289cd9",
+    "weights": "4a1e1fc3f12346c2c852a5c6d3ea02eea0ec1df45159094bd64b41e6f258eb95"
+  },
+  {
+    "box": [30, 20, 31, 21],
+    "patches": 512,
+    "size": [112, 112, 7, 7],
+    "pixels": "f278d511427329d16ae4ea3daa35f191dfed66e46f958b60abc6d0fb32289cd9",
+    "weights": "4a1e1fc3f12346c2c852a5c6d3ea02eea0ec1df45159094bd64b41e6f258eb95"
+  },
+  {
+    "box": [2, 2, 90, 12],
+    "patches": 256,
+    "size": [48, 352, 3, 22],
+    "pixels": "a7375d13bd63eefb213ad437cf43ea6dddceb233c6515bf31eaa0557b673021e",
+    "weights": "879504a5ab7123c5490b3e56a668ef354a48efda2a75477a8c0a95bd9d6cf74c"
+  },
+  {
+    "box": [2, 2, 90, 12],
+    "patches": 512,
+    "size": [48, 352, 3, 22],
+    "pixels": "a7375d13bd63eefb213ad437cf43ea6dddceb233c6515bf31eaa0557b673021e",
+    "weights": "879504a5ab7123c5490b3e56a668ef354a48efda2a75477a8c0a95bd9d6cf74c"
+  }
+]

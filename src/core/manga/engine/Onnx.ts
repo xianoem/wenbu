@@ -1,5 +1,5 @@
 import { createRequire } from 'node:module'
-import { Clock, Config, Context, Effect, FileSystem, Layer, Option, Path } from 'effect'
+import { Clock, Config, Context, Effect, FileSystem, Layer, Option, Path, Semaphore } from 'effect'
 import type { InferenceSession, Tensor } from 'onnxruntime-common'
 import { MangaError } from '#contract/Manga'
 
@@ -77,6 +77,15 @@ export class Onnx extends Context.Service<
       file: string,
       dimensions?: Readonly<Record<string, number>>,
     ) => Effect.Effect<Session, MangaError>
+    /**
+     * Runs a session. Runs and session creation take turns on the GPU, as the plugin's on_gpu does:
+     * overlapping DirectML work can run past Windows' GPU timeout and reset the device.
+     */
+    readonly run: (
+      session: Session,
+      feeds: InferenceSession.FeedsType,
+      failure: string,
+    ) => Effect.Effect<InferenceSession.ReturnType, MangaError>
   }
 >()('wenbu/core/manga/engine/Onnx') {
   static readonly layer = Layer.effect(
@@ -121,21 +130,33 @@ export class Onnx extends Context.Service<
           }),
         })
 
+      const gpu = yield* Semaphore.make(1)
+
       const session = Effect.fn('Onnx.session')(function* (
         file: string,
         dimensions?: Readonly<Record<string, number>>,
       ) {
-        return yield* Effect.tryPromise({
-          try: () =>
-            ort.InferenceSession.create(path.join(models, file), {
-              ...options(),
-              ...(dimensions === undefined ? {} : { freeDimensionOverrides: { ...dimensions } }),
-            }),
-          catch: (error) => failed(`The model ${file} could not be loaded: ${String(error)}`),
-        })
+        return yield* gpu.withPermits(1)(
+          Effect.tryPromise({
+            try: () =>
+              ort.InferenceSession.create(path.join(models, file), {
+                ...options(),
+                ...(dimensions === undefined ? {} : { freeDimensionOverrides: { ...dimensions } }),
+              }),
+            catch: (error) => failed(`The model ${file} could not be loaded: ${String(error)}`),
+          }),
+        )
       })
 
-      return Onnx.of({ ort, device, models, session })
+      const run = (session: Session, feeds: InferenceSession.FeedsType, failure: string) =>
+        gpu.withPermits(1)(
+          Effect.tryPromise({
+            try: () => session.run(feeds),
+            catch: (error) => failed(`${failure}: ${String(error)}`),
+          }),
+        )
+
+      return Onnx.of({ ort, device, models, session, run })
     }),
   )
 }

@@ -5,6 +5,7 @@ import type { MangaCv } from './MangaCv'
 import type { Cv } from './OpenCv'
 import { quad, type Quad } from './Quad'
 import { fontSize } from './TextMerge'
+import { mapBytes } from './Bytes'
 
 /**
  * A port of manga-image-translator's mask refinement ("fit_text", mask_refinement/__init__.py and
@@ -218,9 +219,7 @@ export const refineMask = Effect.fnUntraced(function* (
   yield* helper.put(maskId, { ...rawMask, channels: 1 })
   yield* helper.resize(maskId, maskScaledId, width, height)
 
-  const mask = Uint8Array.from((yield* helper.get(maskScaledId)).data, (value) =>
-    value > 0 ? 255 : 0,
-  )
+  const mask = mapBytes((yield* helper.get(maskScaledId)).data, (value) => (value > 0 ? 255 : 0))
 
   yield* Effect.forEach([scaledId, filteredId, maskId, maskScaledId], (id) => helper.drop(id), {
     discard: true,
@@ -389,5 +388,5 @@ export const refineMask = Effect.fnUntraced(function* (
 
   yield* Effect.forEach([finalId, finalFullId], (id) => helper.drop(id), { discard: true })
 
-  return Uint8Array.from(full.data, (value) => (value > 0 ? 255 : 0))
+  return mapBytes(full.data, (value) => (value > 0 ? 255 : 0))
 })

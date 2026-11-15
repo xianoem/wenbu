@@ -1,6 +1,7 @@
 import { roundHalfEven } from './DbBoxes'
 import type { RgbImage } from './Images'
 import type { Cv } from './OpenCv'
+import { mapBytes } from './Bytes'
 
 /**
  * A port of the Manga Editor's cleaning plan (wenbu_manga/editor.py): which pixels are filled with the
@@ -30,6 +31,7 @@ export interface Page {
   /** 1 where the page is paper (lighter than 200 and away from ink), 0 elsewhere. */
   readonly paper: Uint8Array
   readonly seal: number
+  readonly scratch: FloodScratch
 }
 
 const withMat = <A>(
@@ -63,6 +65,158 @@ const dilate = (cv: Cv, data: Uint8Array, width: number, height: number, iterati
     return result
   })
 
+/**
+ * cv.dilate of a 0/1 mask with a 3x3 square, `iterations` times: the same as one square of side
+ * 2 * iterations + 1, done as a row pass and a column pass. Pixels outside the page add nothing.
+ */
+export const dilateSquare = (
+  data: Uint8Array,
+  width: number,
+  height: number,
+  iterations: number,
+) => {
+  const rows = new Uint8Array(data.length)
+
+  for (let y = 0; y < height; y += 1) {
+    const start = y * width
+    let last = Number.NEGATIVE_INFINITY
+
+    for (let x = 0; x < width; x += 1) {
+      if (data[start + x] !== 0) {
+        last = x
+      }
+
+      if (x - last <= iterations) {
+        rows[start + x] = 1
+      }
+    }
+
+    last = Number.POSITIVE_INFINITY
+
+    for (let x = width - 1; x >= 0; x -= 1) {
+      if (data[start + x] !== 0) {
+        last = x
+      }
+
+      if (last - x <= iterations) {
+        rows[start + x] = 1
+      }
+    }
+  }
+
+  const out = new Uint8Array(data.length)
+
+  for (let x = 0; x < width; x += 1) {
+    let last = Number.NEGATIVE_INFINITY
+
+    for (let y = 0; y < height; y += 1) {
+      if (rows[y * width + x] !== 0) {
+        last = y
+      }
+
+      if (y - last <= iterations) {
+        out[y * width + x] = 1
+      }
+    }
+
+    last = Number.POSITIVE_INFINITY
+
+    for (let y = height - 1; y >= 0; y -= 1) {
+      if (rows[y * width + x] !== 0) {
+        last = y
+      }
+
+      if (last - y <= iterations) {
+        out[y * width + x] = 1
+      }
+    }
+  }
+
+  return out
+}
+
+/** Reusable buffers for flood fills over one page. */
+export interface FloodScratch {
+  readonly marks: Uint8Array
+  readonly queue: Int32Array
+}
+
+export const floodScratch = (pixels: number): FloodScratch => ({
+  marks: new Uint8Array(pixels),
+  queue: new Int32Array(pixels),
+})
+
+/**
+ * cv.floodFill with 4-connectivity over the 1 pixels of `paper` from `seed`, as the list of pixels
+ * reached. It stops once more than `limit` are reached, since the caller then only needs to know the
+ * area is too large. The scratch marks are cleared again before it returns.
+ */
+export const floodPaper = (
+  paper: Uint8Array,
+  width: number,
+  height: number,
+  seed: readonly [number, number],
+  limit: number,
+  scratch: FloodScratch,
+) => {
+  const { marks, queue } = scratch
+  const start = seed[1] * width + seed[0]
+  const bounds = { left: width, top: height, right: -1, bottom: -1 }
+
+  if (paper[start] === 0) {
+    return { pixels: queue.subarray(0, 0), count: 0, bounds }
+  }
+
+  let head = 0
+  let tail = 0
+
+  const visit = (next: number) => {
+    if (marks[next] === 0 && paper[next] !== 0) {
+      marks[next] = 1
+      queue[tail] = next
+      tail += 1
+    }
+  }
+
+  visit(start)
+
+  while (head < tail && head <= limit) {
+    const p = queue[head] ?? 0
+    const x = p % width
+    const y = (p - x) / width
+
+    head += 1
+    bounds.left = Math.min(bounds.left, x)
+    bounds.right = Math.max(bounds.right, x)
+    bounds.top = Math.min(bounds.top, y)
+    bounds.bottom = Math.max(bounds.bottom, y)
+
+    if (x > 0) {
+      visit(p - 1)
+    }
+
+    if (x < width - 1) {
+      visit(p + 1)
+    }
+
+    if (y > 0) {
+      visit(p - width)
+    }
+
+    if (y < height - 1) {
+      visit(p + width)
+    }
+  }
+
+  const pixels = queue.subarray(0, tail)
+
+  for (const p of pixels) {
+    marks[p] = 0
+  }
+
+  return { pixels, count: tail, bounds }
+}
+
 /** Everything the plan reads off a page, computed once. */
 export const pageOf = (cv: Cv, rgb: RgbImage): Page => {
   const gray = withMat(cv, rgb.height, rgb.width, cv.CV_8UC3, rgb.data, (source) => {
@@ -79,15 +233,21 @@ export const pageOf = (cv: Cv, rgb: RgbImage): Page => {
 
   const seal = Math.max(2, Math.floor(rgb.height / 800))
 
-  const ink = dilate(
-    cv,
-    Uint8Array.from(gray, (value) => (value < paperLevel ? 1 : 0)),
+  const ink = dilateSquare(
+    mapBytes(gray, (value) => (value < paperLevel ? 1 : 0)),
     rgb.width,
     rgb.height,
     seal,
   )
 
-  return { cv, rgb, gray, paper: Uint8Array.from(ink, (value) => 1 - value), seal }
+  return {
+    cv,
+    rgb,
+    gray,
+    paper: mapBytes(ink, (value) => 1 - value),
+    seal,
+    scratch: floodScratch(rgb.width * rgb.height),
+  }
 }
 
 export const clipped = (box: ReadonlyArray<number>, width: number, height: number) => {
@@ -106,6 +266,24 @@ interface Region {
 }
 
 const emptyRegion: Region = { x: 0, y: 0, w: 0, h: 0, data: new Uint8Array(0) }
+
+/** A crop that is 1 at the given page pixels. */
+const regionOf = (
+  pixels: Int32Array,
+  width: number,
+  x: number,
+  y: number,
+  w: number,
+  h: number,
+) => {
+  const data = new Uint8Array(w * h)
+
+  for (const p of pixels) {
+    data[(Math.floor(p / width) - y) * w + (p % width) - x] = 1
+  }
+
+  return data
+}
 
 const cropOf = (data: Uint8Array, width: number, x: number, y: number, w: number, h: number) => {
   const out = new Uint8Array(w * h)
@@ -167,7 +345,7 @@ const strokeMask = (cv: Cv, gray: Uint8Array, w: number, h: number) => {
   })
 
   const set = dark.filter((value) => value !== 0).length
-  const strokes = set <= dark.length / 2 ? dark : Uint8Array.from(dark, (value) => 255 - value)
+  const strokes = set <= dark.length / 2 ? dark : mapBytes(dark, (value) => 255 - value)
 
   return dilate(cv, strokes, w, h, 2)
 }
@@ -203,7 +381,7 @@ export const blockMask = (page: Page, scan: Uint8Array, block: CleanBlock): Regi
     )
 
     if (x2 > x1 && y2 > y1) {
-      const data = Uint8Array.from(cropOf(scan, width, x1, y1, x2 - x1, y2 - y1), (value) =>
+      const data = mapBytes(cropOf(scan, width, x1, y1, x2 - x1, y2 - y1), (value) =>
         value >= 127 ? 255 : 0,
       )
 
@@ -229,7 +407,7 @@ export const blockMask = (page: Page, scan: Uint8Array, block: CleanBlock): Regi
       ? strokeMask(page.cv, crop, w, h)
       : dilate(
           page.cv,
-          Uint8Array.from(crop, (value) =>
+          mapBytes(crop, (value) =>
             Math.abs(value - colours[0]) < Math.abs(value - colours[1]) ? 255 : 0,
           ),
           w,
@@ -301,52 +479,9 @@ export const bubbleAround = (page: Page, box: ReadonlyArray<number>): Bubble | u
     return undefined
   }
 
-  const flood = withMat(cv, height, width, cv.CV_8UC1, paper, (source) => {
-    const mask = cv.Mat.zeros(height + 2, width + 2, cv.CV_8UC1)
-
-    cv.floodFill(
-      source,
-      mask,
-      new cv.Point(seed?.[0] ?? 0, seed?.[1] ?? 0),
-      new cv.Scalar(1),
-      new cv.Rect(),
-      new cv.Scalar(0),
-      new cv.Scalar(0),
-      4 | (255 << 8) | cv.FLOODFILL_MASK_ONLY,
-    )
-
-    const out = new Uint8Array(width * height)
-
-    for (let row = 0; row < height; row += 1) {
-      out.set(
-        mask.data.subarray((row + 1) * (width + 2) + 1, (row + 1) * (width + 2) + 1 + width),
-        row * width,
-      )
-    }
-
-    mask.delete()
-
-    return out
-  })
-
-  let left = width
-  let top = height
-  let right = -1
-  let bottom = -1
-  let count = 0
-
-  for (let p = 0; p < flood.length; p += 1) {
-    if (flood[p] !== 0) {
-      const x = p % width
-      const y = Math.floor(p / width)
-
-      count += 1
-      left = Math.min(left, x)
-      right = Math.max(right, x)
-      top = Math.min(top, y)
-      bottom = Math.max(bottom, y)
-    }
-  }
+  const flooded = floodPaper(paper, width, height, seed, w * h * largestBubble, page.scratch)
+  const { count } = flooded
+  const { left, top, right, bottom } = flooded.bounds
 
   if (count > w * h * largestBubble) {
     return undefined
@@ -357,7 +492,7 @@ export const bubbleAround = (page: Page, box: ReadonlyArray<number>): Bubble | u
     y: top,
     w: right - left + 1,
     h: bottom - top + 1,
-    data: cropOf(flood, width, left, top, right - left + 1, bottom - top + 1),
+    data: regionOf(flooded.pixels, width, left, top, right - left + 1, bottom - top + 1),
   }
 
   const grown = dilateRegion(page, inside, seal)
@@ -591,7 +726,7 @@ export const blendPatch = (
 
   const ringRegion = dilate(
     cv,
-    Uint8Array.from(mask, (value) => (value > 0 ? 1 : 0)),
+    mapBytes(mask, (value) => (value > 0 ? 1 : 0)),
     width,
     height,
     patchRing,
@@ -687,6 +822,6 @@ export const blendPatch = (
   return {
     width,
     height,
-    data: Uint8Array.from(result, (value) => Math.trunc(Math.min(Math.max(value, 0), 255))),
+    data: mapBytes(result, (value) => Math.trunc(Math.min(Math.max(value, 0), 255))),
   }
 }

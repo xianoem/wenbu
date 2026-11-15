@@ -183,4 +183,6 @@ Wenbu is licensed under the [GNU General Public License v3.0](LICENSE).
 
 The manga image helper (`wenbu-manga-cv.exe`) links [OpenCV](https://opencv.org) (Apache-2.0) with Intel IPP ICV (Intel Simplified Software License), and the dense CRF code from [pydensecrf](https://github.com/lucasb-eyer/pydensecrf) (MIT) with Eigen (MPL-2.0) and liblbfgs (MIT). Their licences ship in `resources/native/<platform>/licenses/wenbu-manga-cv`.
 
+The native manga engine letters with [CanvasKit](https://skia.org/docs/user/modules/canvaskit/) (Skia, BSD-3-Clause) and [harfbuzzjs](https://github.com/harfbuzz/harfbuzzjs) (HarfBuzz, MIT). Its language check uses the model of [py3langid](https://github.com/adbar/py3langid) (BSD-3-Clause), exported to a flat file.
+
 The games, manga, novels and usage in the screenshots are made up for this page.
