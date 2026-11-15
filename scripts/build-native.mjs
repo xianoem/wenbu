@@ -1,5 +1,5 @@
 import { execFileSync, spawnSync } from 'node:child_process'
-import { copyFileSync, existsSync, mkdirSync, rmSync, writeFileSync } from 'node:fs'
+import { copyFileSync, cpSync, existsSync, mkdirSync, rmSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 
 const root = join(import.meta.dirname, '..')
@@ -12,6 +12,7 @@ const helpers = [
   ...(windows
     ? [
         { name: 'luna-hook', outputs: ['wenbu-luna-hook.exe'] },
+        { name: 'manga-cv', outputs: ['wenbu-manga-cv.exe'], licenses: true },
         { name: 'speech', outputs: ['wenbu-speech.exe'], vulkan: true },
         {
           name: 'rgss-bridge',
@@ -76,6 +77,10 @@ for (const helper of helpers) {
 
     copyFileSync(built, join(outDir, name))
     process.stdout.write(`Built ${join(outDir, name)}\n`)
+  }
+
+  if (helper.licenses) {
+    cpSync(join(build, 'Release', 'licenses'), join(outDir, 'licenses'), { recursive: true })
   }
 }
 

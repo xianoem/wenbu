@@ -367,7 +367,12 @@ const isMangaEngineStop = Schema.is(MangaEngineStop)
 const startMangaEngines = (core: CoreSupervisor) => {
   const engines = mangaEngines({
     entry: join(import.meta.dirname, 'engine.js'),
-    env: () => process.env,
+    env: () => ({
+      ...process.env,
+      WENBU_RESOURCES_DIR: app.isPackaged
+        ? process.resourcesPath
+        : join(app.getAppPath(), 'resources'),
+    }),
     post: (message, ports) => core.postMessage(message, ports),
     onExit: (id, exitCode, output) => {
       if (exitCode !== 0) {

@@ -2,6 +2,7 @@ import { Context, Effect, Layer, Ref } from 'effect'
 import { MangaError } from '#contract/Manga'
 import { dbBoxes, roundHalfEven } from './DbBoxes'
 import type { RgbImage } from './Images'
+import { MangaCv } from './MangaCv'
 import { Onnx, type Session } from './Onnx'
 import { OpenCv, type Cv } from './OpenCv'
 import { quad, quadArea, type Quad } from './Quad'
@@ -23,22 +24,11 @@ export interface Detection {
 const failed = (message: string) => new MangaError({ reason: 'failed', message })
 
 const detectSize = 2048
-const minimumSide = 400
-const tile = 1024
-const halo = 8
 const f = Math.fround
-
-const reflect = (index: number, size: number) => {
-  if (index < 0) {
-    return Math.min(-index, size - 1)
-  }
-
-  if (index >= size) {
-    return Math.max(2 * size - 2 - index, 0)
-  }
-
-  return index
-}
+const pageId = 1
+const filteredId = 2
+const smallId = 3
+const minimumSide = 400
 
 /** _add_border: small pages sit in the top-left corner of a black square. */
 const withBorder = (image: RgbImage): RgbImage => {
@@ -52,20 +42,6 @@ const withBorder = (image: RgbImage): RgbImage => {
   return { width: side, height: side, data }
 }
 
-const resized = (cv: Cv, image: RgbImage, width: number, height: number) => {
-  const source = cv.matFromArray(image.height, image.width, cv.CV_8UC3, image.data)
-  const target = new cv.Mat()
-
-  cv.resize(source, target, new cv.Size(width, height), 0, 0, cv.INTER_LINEAR)
-
-  const data = Uint8Array.from(target.data)
-
-  source.delete()
-  target.delete()
-
-  return { width, height, data }
-}
-
 export class Detector extends Context.Service<
   Detector,
   { readonly detect: (image: RgbImage) => Effect.Effect<Detection, MangaError> }
@@ -75,7 +51,7 @@ export class Detector extends Context.Service<
     Effect.gen(function* () {
       const onnx = yield* Onnx
       const { cv } = yield* OpenCv
-      const bilateralSession = yield* onnx.session('bilateral.onnx')
+      const mangaCv = yield* MangaCv
       const sessions = yield* Ref.make(new Map<string, Session>())
 
       const sessionFor = Effect.fnUntraced(function* (height: number, width: number) {
@@ -93,64 +69,32 @@ export class Detector extends Context.Service<
         return created
       })
 
-      /** cv::bilateralFilter(17, 80, 80) on the GPU, tile by tile, with reflect-101 borders. */
-      const bilateral = Effect.fnUntraced(function* (image: RgbImage) {
-        const { width, height } = image
-        const out = new Uint8Array(width * height * 3)
-        const side = tile + 2 * halo
-        const input = new Uint8Array(side * side * 3)
+      /** The plugin's bilateralFilter(17, 80, 80), then the resize to the detection size. */
+      const filteredSmall = Effect.fnUntraced(function* (
+        image: RgbImage,
+        width: number,
+        height: number,
+      ) {
+        yield* mangaCv.put(pageId, { ...image, channels: 3 })
+        yield* mangaCv.bilateral(pageId, filteredId, 17, 80, 80)
+        yield* mangaCv.resize(filteredId, smallId, width, height)
 
-        for (let top = 0; top < height; top += tile) {
-          for (let left = 0; left < width; left += tile) {
-            for (let y = 0; y < side; y += 1) {
-              const sy = reflect(top + y - halo, height)
+        const small = yield* mangaCv.get(smallId)
 
-              for (let x = 0; x < side; x += 1) {
-                const source = (sy * width + reflect(left + x - halo, width)) * 3
-                const target = (y * side + x) * 3
+        yield* Effect.forEach([pageId, filteredId, smallId], (id) => mangaCv.drop(id), {
+          discard: true,
+        })
 
-                input[target] = image.data[source] ?? 0
-                input[target + 1] = image.data[source + 1] ?? 0
-                input[target + 2] = image.data[source + 2] ?? 0
-              }
-            }
-
-            const result = yield* Effect.tryPromise({
-              try: () =>
-                bilateralSession.run({
-                  image: new onnx.ort.Tensor('uint8', input, [side, side, 3]),
-                }),
-              catch: (error) => failed(`The bilateral filter failed: ${String(error)}`),
-            })
-
-            const filtered = result['filtered']?.data
-
-            if (!(filtered instanceof Uint8Array)) {
-              return yield* failed('The bilateral filter returned no image.')
-            }
-
-            for (let y = 0; y < Math.min(tile, height - top); y += 1) {
-              const rows = Math.min(tile, width - left) * 3
-
-              out.set(
-                filtered.subarray(y * tile * 3, y * tile * 3 + rows),
-                ((top + y) * width + left) * 3,
-              )
-            }
-          }
-        }
-
-        return { width, height, data: out }
+        return small
       })
 
       const detect = Effect.fn('Detector.detect')(function* (page: RgbImage) {
         const bordered = Math.min(page.width, page.height) < minimumSide
         const image = bordered ? withBorder(page) : page
-        const filtered = yield* bilateral(image)
         const ratio = detectSize / Math.max(image.height, image.width)
         const targetHeight = roundHalfEven(image.height * ratio)
         const targetWidth = roundHalfEven(image.width * ratio)
-        const small = resized(cv, filtered, targetWidth, targetHeight)
+        const small = yield* filteredSmall(image, targetWidth, targetHeight)
         const padHeight = targetHeight % 256 === 0 ? 0 : 256 - (targetHeight % 256)
         const padWidth = targetWidth % 256 === 0 ? 0 : 256 - (targetWidth % 256)
         const height = targetHeight + padHeight

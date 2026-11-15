@@ -159,6 +159,8 @@ You need:
 - Visual Studio Build Tools 2022, with its C++ tools and CMake
 - The [Vulkan SDK](https://vulkan.lunarg.com)
 
+`pnpm build:native` downloads the pinned sources it needs on the first run, OpenCV 4.11 among them (95 MB), into the git-ignored `native/*/build` folders.
+
 ```bash
 pnpm install
 pnpm build:native
@@ -178,5 +180,7 @@ pnpm build
 ## License
 
 Wenbu is licensed under the [GNU General Public License v3.0](LICENSE).
+
+The manga image helper (`wenbu-manga-cv.exe`) links [OpenCV](https://opencv.org) (Apache-2.0) with Intel IPP ICV (Intel Simplified Software License), and the dense CRF code from [pydensecrf](https://github.com/lucasb-eyer/pydensecrf) (MIT) with Eigen (MPL-2.0) and liblbfgs (MIT). Their licences ship in `resources/native/<platform>/licenses/wenbu-manga-cv`.
 
 The games, manga, novels and usage in the screenshots are made up for this page.
