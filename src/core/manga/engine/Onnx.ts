@@ -30,11 +30,15 @@ const fastestAdapter = Effect.fnUntraced(function* (ort: OrtModule, probe: strin
 
     yield* Effect.tryPromise(() => session.run({ x: input }))
 
-    const started = yield* Clock.currentTimeMillis
+    let millis = Number.POSITIVE_INFINITY
 
-    yield* Effect.tryPromise(() => session.run({ x: input }))
+    for (let run = 0; run < 3; run += 1) {
+      const started = yield* Clock.currentTimeMillis
 
-    const millis = (yield* Clock.currentTimeMillis) - started
+      yield* Effect.tryPromise(() => session.run({ x: input }))
+
+      millis = Math.min(millis, (yield* Clock.currentTimeMillis) - started)
+    }
 
     yield* Effect.tryPromise(() => session.release())
 
@@ -58,7 +62,10 @@ export class Onnx extends Context.Service<
     readonly ort: OrtModule
     readonly device: Device
     readonly models: string
-    readonly session: (file: string) => Effect.Effect<Session, MangaError>
+    readonly session: (
+      file: string,
+      dimensions?: Readonly<Record<string, number>>,
+    ) => Effect.Effect<Session, MangaError>
   }
 >()('wenbu/core/manga/engine/Onnx') {
   static readonly layer = Layer.effect(
@@ -103,9 +110,16 @@ export class Onnx extends Context.Service<
           }),
         })
 
-      const session = Effect.fn('Onnx.session')(function* (file: string) {
+      const session = Effect.fn('Onnx.session')(function* (
+        file: string,
+        dimensions?: Readonly<Record<string, number>>,
+      ) {
         return yield* Effect.tryPromise({
-          try: () => ort.InferenceSession.create(path.join(models, file), options()),
+          try: () =>
+            ort.InferenceSession.create(path.join(models, file), {
+              ...options(),
+              ...(dimensions === undefined ? {} : { freeDimensionOverrides: { ...dimensions } }),
+            }),
           catch: (error) => failed(`The model ${file} could not be loaded: ${String(error)}`),
         })
       })
