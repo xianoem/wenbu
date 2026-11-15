@@ -56,7 +56,7 @@ const hexColour = (value: OptionValue): readonly [number, number, number] | unde
 const numberOption = (value: OptionValue, fallback: number) =>
   Predicate.isNumber(value) ? value : fallback
 
-const letterOptions = (options: EditorOp['options']): LetterOptions => ({
+export const letterOptions = (options: EditorOp['options']): LetterOptions => ({
   fontDir: Predicate.isString(options['font_dir']) ? options['font_dir'] : '',
   minFontSize: numberOption(options['min_font_size'], 12),
   maxFontSize: numberOption(options['max_font_size'], 100),

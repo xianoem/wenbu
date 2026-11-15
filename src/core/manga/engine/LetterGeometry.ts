@@ -1,6 +1,8 @@
+import { Result } from 'effect'
 import { roundHalfEven } from './DbBoxes'
 import type { RgbImage } from './Images'
 import type { Cv } from './OpenCv'
+import { crop as cropImage } from './PillowResize'
 import { mapBytes } from './Bytes'
 
 /**
@@ -23,6 +25,8 @@ export interface LetterRegion {
   readonly translation: string
   readonly vertical: boolean
   readonly textBox?: Box | undefined
+  /** Degrees the lettering turns by, as the block's lines lean. */
+  readonly angle?: number | undefined
 }
 
 const minBalloonAreaRatio = 1.15
@@ -139,8 +143,8 @@ const balloonRegion = (cv: Cv, page: RgbImage, region: LetterRegion) =>
         ? enlargeWindow([rx, ry, rx + rw, ry + rh], page.width, page.height, ratio, rh / rw)
         : ([rx, ry, rx + rw, ry + rh] as const)
 
-    const full = track(cv.matFromArray(page.height, page.width, cv.CV_8UC3, page.data))
-    const crop = track(full.roi(new cv.Rect(x1, y1, x2 - x1, y2 - y1)).clone())
+    const cropped = cropImage(page, x1, y1, x2, y2)
+    const crop = track(cv.matFromArray(cropped.height, cropped.width, cv.CV_8UC3, cropped.data))
     const oriH = crop.rows
     const oriW = crop.cols
     let scale = 1
@@ -306,7 +310,14 @@ const balloonRegion = (cv: Cv, page: RgbImage, region: LetterRegion) =>
 
 /** _extract_balloon_render_geometry: the balloon's box and mask, when the balloon is clearly larger than the block. */
 const balloonGeometry = (cv: Cv, page: RgbImage, region: LetterRegion): Geometry | undefined => {
-  const found = balloonRegion(cv, page, region)
+  // The plugin falls back to the enlarged box when OpenCV throws here, on a block at the page's edge say.
+  const attempt = Result.try(() => balloonRegion(cv, page, region))
+
+  if (Result.isFailure(attempt)) {
+    return undefined
+  }
+
+  const found = attempt.success
 
   if (!found.mask.some((value) => value > 0)) {
     return undefined

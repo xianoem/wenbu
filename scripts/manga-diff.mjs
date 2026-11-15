@@ -153,7 +153,46 @@ const connect = (worker) => {
       waiting.get(message.id)?.(message)
       waiting.delete(message.id)
     }
+
+    if (message.run !== undefined) {
+      runListener?.(message)
+    }
   })
+
+  let runListener
+
+  /** A folder run with filler translations: each text becomes an English line of similar length. */
+  const folderRun = (pages) =>
+    new Promise((done) => {
+      const events = []
+      const started = performance.now()
+
+      runListener = (message) => {
+        events.push({ ...message, at: (performance.now() - started) / 1000 })
+
+        if (message.event === 'translate') {
+          worker.send(
+            JSON.stringify({
+              type: 'translated',
+              id: message.id,
+              translations: message.texts.map((text, index) =>
+                filler.slice(
+                  0,
+                  Math.max(12, Math.min(filler.length, [...text].length * 4 + index)),
+                ),
+              ),
+            }),
+          )
+        }
+
+        if (message.event === 'run-done' || message.event === 'run-failed') {
+          runListener = undefined
+          done({ events, seconds: (performance.now() - started) / 1000 })
+        }
+      }
+
+      worker.send(JSON.stringify({ type: 'run', run: `diff-${worker.name}`, options, pages }))
+    })
 
   const editor = async (request) => {
     await Promise.race([ready, new Promise((done) => setTimeout(done, 120_000))])
@@ -175,8 +214,11 @@ const connect = (worker) => {
     return { ...reply, seconds: (performance.now() - started) / 1000 }
   }
 
-  return { name: worker.name, ready, editor, stop: worker.stop }
+  return { name: worker.name, ready, editor, folderRun, stop: worker.stop }
 }
+
+const filler =
+  "Hey, wait a second! I didn't think you'd actually come all this way just to see me. That's so sweet of you, really."
 
 const readPng = (file) => {
   if (!existsSync(file)) {
@@ -381,6 +423,59 @@ const run = async () => {
 
   const workers = [native, connect(pythonWorker())]
   const report = []
+
+  if (ops.has('run')) {
+    const jobs = (name) =>
+      pages.map((page, index) => ({
+        source: join(page.folder, page.page),
+        output: join(out, name, 'run', `${index}.png`),
+      }))
+
+    const runs = {}
+
+    for (const worker of workers) {
+      runs[worker.name] = await worker.folderRun(jobs(worker.name))
+    }
+
+    const pagesOf = (name) =>
+      runs[name].events.filter(
+        (event) => event.event === 'page-done' || event.event === 'page-failed',
+      )
+
+    const runReport = pages.map((page, index) => ({
+      page: join(page.folder, page.page),
+      python: pagesOf('python').find((event) => event.page === index),
+      native: pagesOf('native').find((event) => event.page === index),
+      image: compareImages(
+        readPng(join(out, 'python', 'run', `${index}.png`)),
+        readPng(join(out, 'native', 'run', `${index}.png`)),
+        join(out, `${index}-run-difference.png`),
+      ),
+    }))
+
+    writeFileSync(
+      join(out, 'run.json'),
+      JSON.stringify(
+        {
+          seconds: { python: runs.python.seconds, native: runs.native.seconds },
+          pages: runReport,
+          events: { python: runs.python.events, native: runs.native.events },
+        },
+        null,
+        1,
+      ),
+    )
+
+    process.stdout.write(
+      `run: ${pages.length} pages, python ${runs.python.seconds.toFixed(1)} s, native ${runs.native.seconds.toFixed(1)} s, native failed on ${runReport.filter((entry) => entry.native?.event !== 'page-done').length}\n`,
+    )
+
+    for (const worker of workers) {
+      worker.stop()
+    }
+
+    return
+  }
 
   for (const worker of workers) {
     mkdirSync(join(out, worker.name), { recursive: true })

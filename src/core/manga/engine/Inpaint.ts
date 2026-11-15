@@ -62,6 +62,45 @@ const withContext = (box: Box, width: number, height: number): Box => {
   )
 }
 
+/**
+ * The real 2-D DFT tables LaMa's Fourier units multiply by, for features of h by w (an eighth of the
+ * crop). The graph takes them as inputs: built inside it, their integer steps ran on the CPU and
+ * stalled every unit on a copy from the GPU.
+ */
+export const fourierTables = (h: number, w: number) => {
+  const k = Math.floor(w / 2) + 1
+  const scale = 1 / Math.sqrt(h * w)
+  const cw = new Float32Array(w * k)
+  const sw = new Float32Array(w * k)
+  const icw = new Float32Array(k * w)
+  const isw = new Float32Array(k * w)
+  const ch = new Float32Array(h * h)
+  const sh = new Float32Array(h * h)
+
+  for (let x = 0; x < w; x += 1) {
+    for (let f = 0; f < k; f += 1) {
+      const angle = (((x * f) % w) * 2 * Math.PI) / w
+      const weight = f === 0 || (w % 2 === 0 && f === w / 2) ? 1 : 2
+
+      cw[x * k + f] = Math.cos(angle) * scale
+      sw[x * k + f] = Math.sin(angle) * scale
+      icw[f * w + x] = Math.cos(angle) * weight * scale
+      isw[f * w + x] = Math.sin(angle) * weight * scale
+    }
+  }
+
+  for (let y = 0; y < h; y += 1) {
+    for (let v = 0; v < h; v += 1) {
+      const angle = (((y * v) % h) * 2 * Math.PI) / h
+
+      ch[y * h + v] = Math.cos(angle)
+      sh[y * h + v] = Math.sin(angle)
+    }
+  }
+
+  return { cw, sw, ch, sh, icw, isw, k }
+}
+
 const overlaps = (a: Box, b: Box) => a[0] < b[2] && b[0] < a[2] && a[1] < b[3] && b[1] < a[3]
 
 const sameBox = (a: Box) => (b: Box) => a.every((edge, index) => edge === b[index])
@@ -238,11 +277,22 @@ export class Inpainter extends Context.Service<
           }
         }
 
+        const fh = padH / align
+        const fw = padW / align
+        const tables = fourierTables(fh, fw)
+        const { Tensor } = onnx.ort
+
         const result = yield* onnx.run(
           session,
           {
-            image: new onnx.ort.Tensor('float32', pixels, [1, 3, padH, padW]),
-            mask: new onnx.ort.Tensor('float32', holes, [1, 1, padH, padW]),
+            image: new Tensor('float32', pixels, [1, 3, padH, padW]),
+            mask: new Tensor('float32', holes, [1, 1, padH, padW]),
+            cw: new Tensor('float32', tables.cw, [fw, tables.k]),
+            sw: new Tensor('float32', tables.sw, [fw, tables.k]),
+            ch: new Tensor('float32', tables.ch, [fh, fh]),
+            sh: new Tensor('float32', tables.sh, [fh, fh]),
+            icw: new Tensor('float32', tables.icw, [tables.k, fw]),
+            isw: new Tensor('float32', tables.isw, [tables.k, fw]),
           },
           'Inpainting failed',
         )

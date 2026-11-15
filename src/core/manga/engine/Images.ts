@@ -1,5 +1,7 @@
 import decodeJpeg, { init as initJpeg } from '@jsquash/jpeg/decode.js'
+import encodeJpeg, { init as initJpegEncoder } from '@jsquash/jpeg/encode.js'
 import decodeWebp, { init as initWebp } from '@jsquash/webp/decode.js'
+import encodeWebp, { init as initWebpEncoder } from '@jsquash/webp/encode.js'
 import { Context, Effect, FileSystem, Layer, Path } from 'effect'
 import { decode as decodePng, encode as encodePng } from 'fast-png'
 import { MangaError } from '#contract/Manga'
@@ -14,6 +16,27 @@ export interface RgbImage {
 export interface CodecFiles {
   readonly jpeg: string
   readonly webp: string
+  /** The encoders, needed only to save JPEG or WebP pages. */
+  readonly jpegEncoder?: string | undefined
+  readonly webpEncoder?: string | undefined
+}
+
+export type PageFormat = 'png' | 'jpeg' | 'webp'
+
+const rgba = (image: RgbImage) => {
+  const data = new Uint8ClampedArray(image.width * image.height * 4)
+
+  for (let p = 0; p < image.width * image.height; p += 1) {
+    data[p * 4] = image.data[p * 3] ?? 0
+    data[p * 4 + 1] = image.data[p * 3 + 1] ?? 0
+    data[p * 4 + 2] = image.data[p * 3 + 2] ?? 0
+    data[p * 4 + 3] = 255
+  }
+
+  // SAFETY: the encoders read only data, width and height, which this object has.
+  return { data, width: image.width, height: image.height, colorSpace: 'srgb' } as Parameters<
+    typeof encodeJpeg
+  >[0]
 }
 
 /**
@@ -124,6 +147,16 @@ export class Images extends Context.Service<
     readonly read: (file: string, alpha?: Alpha) => Effect.Effect<RgbImage, MangaError>
     /** Writes RGB, or one grey channel when `data` holds one byte per pixel, as PNG. */
     readonly write: (file: string, image: RgbImage) => Effect.Effect<void, MangaError>
+    /**
+     * save_page: PNG at zlib level 1, JPEG with full-resolution colour at the given quality, or WebP,
+     * lossless at quality 100.
+     */
+    readonly save: (
+      file: string,
+      image: RgbImage,
+      format: PageFormat,
+      quality: number,
+    ) => Effect.Effect<void, MangaError>
   }
 >()('wenbu/core/manga/engine/Images') {
   static readonly layer = (codecs: CodecFiles) =>
@@ -186,7 +219,96 @@ export class Images extends Context.Service<
           Effect.mapError(() => failed('The cleaned page could not be saved.')),
         )
 
-        return Images.of({ read, write })
+        const encoders = { jpeg: false, webp: false }
+
+        const encoderReady = Effect.fnUntraced(function* (format: 'jpeg' | 'webp') {
+          if (encoders[format]) {
+            return
+          }
+
+          const file = format === 'jpeg' ? codecs.jpegEncoder : codecs.webpEncoder
+
+          if (file === undefined) {
+            return yield* failed(`Saving ${format.toUpperCase()} pages is not available.`)
+          }
+
+          const binary = yield* wasm(file)
+
+          if (format === 'jpeg') {
+            yield* Effect.promise(() => initJpegEncoder({ wasmBinary: binary }))
+          } else {
+            yield* Effect.promise(() => initWebpEncoder({ wasmBinary: binary }))
+          }
+
+          encoders[format] = true
+        })
+
+        const encoded = (image: RgbImage, format: PageFormat, quality: number) => {
+          if (format === 'png') {
+            return Effect.succeed(
+              encodePng(
+                {
+                  width: image.width,
+                  height: image.height,
+                  data: image.data,
+                  channels: 3,
+                  depth: 8,
+                },
+                { zlib: { level: 1 } },
+              ),
+            )
+          }
+
+          return encoderReady(format).pipe(
+            Effect.andThen(
+              Effect.tryPromise({
+                try: () =>
+                  format === 'jpeg'
+                    ? encodeJpeg(rgba(image), {
+                        quality,
+                        baseline: true,
+                        progressive: false,
+                        optimize_coding: false,
+                        quant_table: 0,
+                        trellis_multipass: false,
+                        trellis_opt_zero: false,
+                        trellis_opt_table: false,
+                        trellis_loops: 1,
+                        auto_subsample: false,
+                        chroma_subsample: 1,
+                      })
+                    : encodeWebp(rgba(image), {
+                        quality,
+                        method: 4,
+                        lossless: quality >= 100 ? 1 : 0,
+                      }),
+                catch: () => failed('The page could not be encoded.'),
+              }),
+            ),
+            Effect.map((buffer) => new Uint8Array(buffer)),
+          )
+        }
+
+        const save = Effect.fn('Images.save')(function* (
+          file: string,
+          image: RgbImage,
+          format: PageFormat,
+          quality: number,
+        ) {
+          const bytes = yield* encoded(image, format, quality)
+          const partial = `${file}.partial`
+
+          yield* Effect.mapError(
+            Effect.gen(function* () {
+              yield* fs.makeDirectory(path.dirname(file), { recursive: true })
+              yield* fs.writeFile(partial, bytes)
+              yield* fs.rename(partial, file)
+            }),
+            () => failed(`The page ${file} could not be saved.`),
+          )
+        })
+
+        return Images.of({ read, write, save })
       }),
     )
 }

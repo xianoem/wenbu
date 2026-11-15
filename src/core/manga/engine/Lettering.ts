@@ -300,6 +300,7 @@ export class Lettering extends Context.Service<
         colour: readonly [number, number, number],
         borderWidth: number,
         borderColour: readonly [number, number, number],
+        rotation: number,
       ) => {
         const memory = canvasKit.Malloc(Uint8Array, width * height * 4)
 
@@ -340,9 +341,20 @@ export class Lettering extends Context.Service<
         }
 
         const { metrics, lines, lineHeight, maxLineWidth, fontSize } = layout
-        const blockLeft = centreX - maxLineWidth / 2
+        const rotated = Math.abs(rotation) > 0.01
+
+        // draw_layout turns the canvas about the target centre and lays the text out around the origin.
+        if (rotated) {
+          canvas.save()
+          canvas.translate(centreX, centreY)
+          canvas.rotate(rotation, 0, 0)
+        }
+
+        const originX = rotated ? 0 : centreX
+        const originY = rotated ? 0 : centreY
+        const blockLeft = originX - maxLineWidth / 2
         const totalHeight = (lines.length - 1) * lineHeight - metrics.ascent + metrics.descent
-        let baseline = centreY - totalHeight / 2 - metrics.ascent
+        let baseline = originY - totalHeight / 2 - metrics.ascent
 
         for (const line of lines) {
           let cursor = blockLeft + (maxLineWidth - line.width) / 2
@@ -383,6 +395,10 @@ export class Lettering extends Context.Service<
           }
 
           baseline += lineHeight
+        }
+
+        if (rotated) {
+          canvas.restore()
         }
 
         surface.flush()
@@ -627,6 +643,7 @@ export class Lettering extends Context.Service<
           textColourOf(block, options),
           options.border ? defaultBorderWidth * factor : 0,
           options.borderColor,
+          block.region.angle ?? 0,
         )
 
         const rgb = new Uint8Array(large.width * large.height * 3)

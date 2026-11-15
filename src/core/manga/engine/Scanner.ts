@@ -33,6 +33,21 @@ export interface ScannedBlock {
   readonly confidence: number
 }
 
+/** A block the scan keeps: its geometry from the merge, its reading after the filters, its colours. */
+export interface FoundBlock {
+  readonly block: Block
+  readonly text: string
+  readonly reading: Reading
+  readonly fg: readonly [number, number, number]
+  readonly bg: readonly [number, number, number]
+}
+
+export interface Found {
+  readonly blocks: ReadonlyArray<FoundBlock>
+  /** The refined text mask at page size, 255 on text. */
+  readonly mask: Uint8Array
+}
+
 export interface Scan {
   readonly width: number
   readonly height: number
@@ -80,7 +95,17 @@ const rgba = (image: RgbImage) => {
   return { width: image.width, height: image.height, pixels }
 }
 
-const kept = (reading: Reading, target: string, languageId: Parameters<typeof filteredText>[2]) => {
+const boxOf = (block: Block) => {
+  const [x1, y1, x2, y2] = block.xyxy
+
+  return [Math.trunc(x1), Math.trunc(y1), Math.trunc(x2), Math.trunc(y2)] as const
+}
+
+const keptText = (
+  reading: Reading,
+  target: string,
+  languageId: Parameters<typeof filteredText>[2],
+) => {
   if (reading.confidence < minimumConfidence) {
     return undefined
   }
@@ -97,6 +122,12 @@ export class Scanner extends Context.Service<
       target: string,
       screenAi: Option.Option<string>,
     ) => Effect.Effect<Scan, MangaError>
+    /** The blocks and refined mask of a page already in memory, as a folder run needs them. */
+    readonly find: (
+      page: RgbImage,
+      target: string,
+      screenAi: Option.Option<string>,
+    ) => Effect.Effect<Found, MangaError>
   }
 >()('wenbu/core/manga/engine/Scanner') {
   static readonly layer = Layer.effect(
@@ -136,25 +167,21 @@ export class Scanner extends Context.Service<
         })
       })
 
-      const scan = Effect.fn('Scanner.scan')(function* (
-        source: string,
-        mask: string,
+      const find = Effect.fn('Scanner.find')(function* (
+        page: RgbImage,
         target: string,
         screenAi: Option.Option<string>,
       ) {
-        const page = yield* images.read(source)
         const { width, height } = page
         const detection = yield* detector.detect(page)
 
         if (detection.lines.length === 0) {
-          yield* images.write(mask, { width, height, data: new Uint8Array(width * height) })
-
-          return { width, height, blocks: [] }
+          return { blocks: [], mask: new Uint8Array(width * height) } satisfies Found
         }
 
         yield* helper.put(pageId, { ...page, channels: 3 })
 
-        const result = yield* Effect.gen(function* () {
+        return yield* Effect.gen(function* () {
           const features = yield* helper.panelFeatures(pageId)
           const panels = findPanels(cv, width, height, features, rightToLeft)
 
@@ -176,32 +203,51 @@ export class Scanner extends Context.Service<
               : Effect.succeed(reading)
           })
 
-          const found = blocks.flatMap((block, index) => {
+          const kept = blocks.flatMap((block, index) => {
             const reading = readings[index]
-            const text = reading === undefined ? undefined : kept(reading, target, languageId)
+            const text = reading === undefined ? undefined : keptText(reading, target, languageId)
 
             return text === undefined || reading === undefined ? [] : [{ block, text, reading }]
           })
 
-          const refined = yield* refineMask(
+          const mask = yield* refineMask(
             cv,
             helper,
             page,
             detection.rawMask,
-            found.flatMap(({ block }) => block.lines.map((line) => line.pts)),
+            kept.flatMap(({ block }) => block.lines.map((line) => line.pts)),
           )
 
-          return { found, refined }
-        }).pipe(Effect.ensuring(helper.drop(pageId).pipe(Effect.ignore)))
+          const found = kept.map(({ block, text, reading }): FoundBlock => {
+            const { fg, bg } = blockColours(cv, page, boxOf(block))
 
-        yield* images.write(mask, { width, height, data: result.refined })
+            return { block, text, reading, fg, bg }
+          })
+
+          return { blocks: found, mask } satisfies Found
+        }).pipe(Effect.ensuring(helper.drop(pageId).pipe(Effect.ignore)))
+      })
+
+      const scan = Effect.fn('Scanner.scan')(function* (
+        source: string,
+        mask: string,
+        target: string,
+        screenAi: Option.Option<string>,
+      ) {
+        const page = yield* images.read(source)
+        const { width, height } = page
+        const found = yield* find(page, target, screenAi)
+
+        yield* images.write(mask, { width, height, data: found.mask })
+
+        if (found.blocks.length === 0) {
+          return { width, height, blocks: [] }
+        }
 
         const plan = pageOf(cv, page)
 
-        const scanned = result.found.map(({ block, text, reading }): ScannedBlock => {
-          const [x1, y1, x2, y2] = block.xyxy
-          const box = [Math.trunc(x1), Math.trunc(y1), Math.trunc(x2), Math.trunc(y2)] as const
-          const { fg, bg } = blockColours(cv, page, box)
+        const scanned = found.blocks.map(({ block, text, reading, fg, bg }): ScannedBlock => {
+          const box = boxOf(block)
 
           return {
             box,
@@ -218,7 +264,7 @@ export class Scanner extends Context.Service<
         return { width, height, blocks: scanned }
       })
 
-      return Scanner.of({ scan })
+      return Scanner.of({ scan, find })
     }),
   )
 }
