@@ -14,44 +14,55 @@ export type Device = 'DirectML' | 'CPU'
 
 const failed = (message: string) => new MangaError({ reason: 'failed', message })
 
-/** Picks the DirectML adapter that runs the probe model fastest, so a laptop uses its discrete GPU. */
+const probeRounds = 4
+
+/**
+ * Picks the DirectML adapter that runs the probe model fastest, so a laptop uses its discrete GPU. The
+ * adapters take turns over several rounds and each keeps its best time, so a moment of load on one GPU
+ * (another process loading models, say) does not decide the choice.
+ */
 const fastestAdapter = Effect.fnUntraced(function* (ort: OrtModule, probe: string) {
-  let best: { readonly id: number; readonly millis: number } | undefined
-
   const input = new ort.Tensor('float32', new Float32Array(1024 * 1024), [1024, 1024])
-
-  const time = Effect.fnUntraced(function* (deviceId: number) {
-    const session = yield* Effect.tryPromise(() =>
-      ort.InferenceSession.create(probe, {
-        executionProviders: [{ name: 'dml', deviceId }],
-        enableMemPattern: false,
-      }),
-    )
-
-    yield* Effect.tryPromise(() => session.run({ x: input }))
-
-    let millis = Number.POSITIVE_INFINITY
-
-    for (let run = 0; run < 3; run += 1) {
-      const started = yield* Clock.currentTimeMillis
-
-      yield* Effect.tryPromise(() => session.run({ x: input }))
-
-      millis = Math.min(millis, (yield* Clock.currentTimeMillis) - started)
-    }
-
-    yield* Effect.tryPromise(() => session.release())
-
-    return millis
-  })
+  const sessions: Array<{ readonly id: number; readonly session: Session; millis: number }> = []
 
   for (const id of [0, 1, 2, 3]) {
-    const timed = yield* Effect.option(time(id))
+    const session = yield* Effect.option(
+      Effect.tryPromise(() =>
+        ort.InferenceSession.create(probe, {
+          executionProviders: [{ name: 'dml', deviceId: id }],
+          enableMemPattern: false,
+        }),
+      ),
+    )
 
-    if (Option.isSome(timed) && (best === undefined || timed.value < best.millis)) {
-      best = { id, millis: timed.value }
+    if (Option.isSome(session)) {
+      sessions.push({ id, session: session.value, millis: Number.POSITIVE_INFINITY })
     }
   }
+
+  for (let round = 0; round <= probeRounds; round += 1) {
+    for (const entry of sessions) {
+      const started = yield* Clock.currentTimeMillis
+      const ran = yield* Effect.option(Effect.tryPromise(() => entry.session.run({ x: input })))
+
+      // The first round only warms each adapter up.
+      if (Option.isSome(ran) && round > 0) {
+        entry.millis = Math.min(entry.millis, (yield* Clock.currentTimeMillis) - started)
+      }
+    }
+  }
+
+  yield* Effect.forEach(sessions, ({ session }) =>
+    Effect.ignore(Effect.tryPromise(() => session.release())),
+  )
+
+  const best = sessions
+    .filter(({ millis }) => Number.isFinite(millis))
+    .reduce<(typeof sessions)[number] | undefined>(
+      (fastest, entry) =>
+        fastest === undefined || entry.millis < fastest.millis ? entry : fastest,
+      undefined,
+    )
 
   return Option.fromNullishOr(best?.id)
 })

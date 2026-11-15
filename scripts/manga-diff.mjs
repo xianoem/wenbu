@@ -12,7 +12,7 @@ import { join, resolve } from 'node:path'
 import { DatabaseSync } from 'node:sqlite'
 import { parseArgs } from 'node:util'
 import { app, MessageChannelMain, utilityProcess } from 'electron'
-import { decode } from 'fast-png'
+import { decode, encode } from 'fast-png'
 
 const { values: args } = parseArgs({
   args: process.argv.slice(2).filter((arg) => !arg.endsWith('manga-diff.mjs')),
@@ -87,7 +87,11 @@ const pythonWorker = () => {
 const nativeEngine = () => {
   const engine = utilityProcess.fork(join(repo, 'out', 'main', 'engine.js'), [], {
     stdio: 'inherit',
-    env: { ...process.env, WENBU_MANGA_ENGINE_DIR: String(args.engine ?? '') },
+    env: {
+      ...process.env,
+      WENBU_MANGA_ENGINE_DIR: String(args.engine ?? ''),
+      WENBU_RESOURCES_DIR: join(repo, 'resources'),
+    },
   })
 
   const { port1, port2 } = new MessageChannelMain()
@@ -103,6 +107,12 @@ const nativeEngine = () => {
 
   port2.start()
 
+  engine.once('exit', (code) => {
+    for (const listener of listeners) {
+      listener(JSON.stringify({ event: 'exited', code }))
+    }
+  })
+
   return {
     name: 'native',
     send: (line) => port2.postMessage(line),
@@ -115,6 +125,7 @@ const connect = (worker) => {
   let next = 0
   const waiting = new Map()
   let markReady
+  let exited = false
 
   const ready = new Promise((done) => {
     markReady = done
@@ -127,6 +138,17 @@ const connect = (worker) => {
       markReady()
     }
 
+    if (message.event === 'exited') {
+      markReady()
+
+      for (const done of waiting.values()) {
+        done({ event: 'editor-failed', message: `The engine exited with code ${message.code}.` })
+      }
+
+      waiting.clear()
+      exited = true
+    }
+
     if (message.event === 'editor-done' || message.event === 'editor-failed') {
       waiting.get(message.id)?.(message)
       waiting.delete(message.id)
@@ -134,7 +156,12 @@ const connect = (worker) => {
   })
 
   const editor = async (request) => {
-    await ready
+    await Promise.race([ready, new Promise((done) => setTimeout(done, 120_000))])
+
+    if (exited) {
+      return { event: 'editor-failed', message: 'The engine has exited.', seconds: 0 }
+    }
+
     next += 1
 
     const id = next
@@ -148,7 +175,7 @@ const connect = (worker) => {
     return { ...reply, seconds: (performance.now() - started) / 1000 }
   }
 
-  return { name: worker.name, editor, stop: worker.stop }
+  return { name: worker.name, ready, editor, stop: worker.stop }
 }
 
 const readPng = (file) => {
@@ -161,7 +188,29 @@ const readPng = (file) => {
   return { width: image.width, height: image.height, channels: image.channels, data: image.data }
 }
 
-const compareImages = (a, b) => {
+/** Grey where the images agree, red scaled by the difference (times eight) where they do not. */
+const differenceMap = (a, b, channels) => {
+  const data = new Uint8Array(a.width * a.height * 3)
+
+  for (let pixel = 0; pixel < a.width * a.height; pixel += 1) {
+    let worst = 0
+
+    for (let channel = 0; channel < channels; channel += 1) {
+      worst = Math.max(
+        worst,
+        Math.abs(a.data[pixel * a.channels + channel] - b.data[pixel * b.channels + channel]),
+      )
+    }
+
+    const grey = 128 + (a.data[pixel * a.channels] >> 2)
+
+    data.set(worst === 0 ? [grey, grey, grey] : [255, Math.max(0, 200 - worst * 8), 0], pixel * 3)
+  }
+
+  return encode({ width: a.width, height: a.height, data, channels: 3, depth: 8 })
+}
+
+const compareImages = (a, b, differences) => {
   if (a === undefined || b === undefined) {
     return { missing: a === undefined ? 'python' : 'native' }
   }
@@ -194,6 +243,10 @@ const compareImages = (a, b) => {
     max = Math.max(max, worst)
   }
 
+  if (differences !== undefined && differing > 0) {
+    writeFileSync(differences, differenceMap(a, b, channels))
+  }
+
   return {
     pixels: a.width * a.height,
     differing,
@@ -214,6 +267,24 @@ const iou = (a, b) => {
 }
 
 const plain = (text) => text.normalize('NFKC').replace(/\s+/g, '')
+
+/** Native colours against the colours stored in the editor for the same block (IoU of at least 0.5). */
+const compareColours = (stored, native) =>
+  stored.flatMap((block) => {
+    if (block.fg === undefined || block.bg === undefined) {
+      return []
+    }
+
+    const match = native.find((candidate) => iou(block.box, candidate.box) >= 0.5)
+
+    if (match === undefined) {
+      return []
+    }
+
+    const distance = (a, b) => Math.max(...a.map((value, channel) => Math.abs(value - b[channel])))
+
+    return [{ fg: distance(block.fg, match.fg), bg: distance(block.bg, match.bg) }]
+  })
 
 const compareBlocks = (python, native) => {
   const used = new Set()
@@ -241,6 +312,7 @@ const compareBlocks = (python, native) => {
         python: block.text,
         native: other.text,
         sameText: plain(block.text) === plain(other.text),
+        confidence: other.confidence,
         fg: block.fg.map((value, channel) => Math.abs(value - (other.fg[channel] ?? 0))),
         bg: block.bg.map((value, channel) => Math.abs(value - (other.bg[channel] ?? 0))),
         fontSize: [block.fontSize, other.fontSize],
@@ -258,7 +330,9 @@ const compareBlocks = (python, native) => {
     meanIou:
       pairs.length === 0 ? 1 : pairs.reduce((total, pair) => total + pair.iou, 0) / pairs.length,
     sameText: pairs.filter((pair) => pair.sameText).length,
-    extraNative: native.filter((_, index) => !used.has(index)).map((block) => block.text),
+    extraNative: native
+      .filter((_, index) => !used.has(index))
+      .map((block) => ({ text: block.text, confidence: block.confidence })),
     pairs,
   }
 }
@@ -300,7 +374,12 @@ const editorPages = () => {
 const run = async () => {
   const limit = Number(args.pages)
   const pages = editorPages().slice(0, limit > 0 ? limit : undefined)
-  const workers = [connect(pythonWorker()), connect(nativeEngine())]
+  // The engine picks its GPU by timing a probe at start, so it starts before Python loads its models.
+  const native = connect(nativeEngine())
+
+  await native.ready
+
+  const workers = [connect(pythonWorker()), native]
   const report = []
 
   for (const worker of workers) {
@@ -378,9 +457,19 @@ const run = async () => {
           python: python.event === 'editor-failed' ? python.message : undefined,
           native: native.event === 'editor-failed' ? native.message : undefined,
         },
-        image: compareImages(readPng(file('python', kind)), readPng(file('native', kind))),
+        image: compareImages(
+          readPng(file('python', kind)),
+          readPng(file('native', kind)),
+          op === 'scan' ? undefined : join(out, `${index}-${kind}-difference.png`),
+        ),
+        files: [`python/${index}-${kind}.png`, `native/${index}-${kind}.png`].concat(
+          op === 'scan' ? [] : [`${index}-${kind}-difference.png`],
+        ),
         ...(op === 'scan' && python.event === 'editor-done' && native.event === 'editor-done'
-          ? { blocks: compareBlocks(python.result.blocks, native.result.blocks) }
+          ? {
+              blocks: compareBlocks(python.result.blocks, native.result.blocks),
+              colours: compareColours(page.blocks, native.result.blocks),
+            }
           : {}),
       }
     }
@@ -423,7 +512,16 @@ const summary = (report) => {
       const matched = blocks.reduce((total, value) => total + value.matched, 0)
       const sameText = blocks.reduce((total, value) => total + value.sameText, 0)
 
-      lines.push(`  blocks: ${matched}/${python} matched, ${sameText} with the same text`)
+      const extra = blocks.reduce((total, value) => total + value.extraNative.length, 0)
+      const colours = entries.flatMap((value) => value.colours ?? [])
+
+      const middle = (values) =>
+        values.toSorted((a, b) => a - b)[Math.floor(values.length / 2)] ?? 0
+
+      lines.push(
+        `  blocks: ${matched}/${python} matched, ${sameText} with the same text, ${extra} extra native blocks`,
+        `  colours against the editor's stored ones (${colours.length} blocks): median largest channel difference fg ${middle(colours.map((c) => c.fg))}, bg ${middle(colours.map((c) => c.bg))}`,
+      )
     }
   }
 
@@ -447,7 +545,11 @@ ${report
       `<h2>${index + 1}. ${escape(entry.page)}</h2>${Object.entries(entry.ops)
         .map(
           ([op, value]) =>
-            `<h3>${op}</h3><pre>${escape(JSON.stringify({ seconds: value.seconds, failed: value.failed, image: value.image }))}</pre>${
+            `<h3>${op}</h3><pre>${escape(JSON.stringify({ seconds: value.seconds, failed: value.failed, image: value.image }))}</pre><p>${(
+              value.files ?? []
+            )
+              .map((name) => `<a href="${name}"><img src="${name}" loading="lazy" width="360"></a>`)
+              .join(' ')}</p>${
               value.blocks === undefined
                 ? ''
                 : `<table><tr><th>IoU</th><th>Python</th><th>Native</th></tr>${value.blocks.pairs

@@ -6,6 +6,7 @@ import { Crypto, Effect, Layer } from 'effect'
 import { Hex } from 'effect/encoding'
 import { Images } from './Images'
 import expected from './__fixtures__/pages.json'
+import dropped from './__fixtures__/pages-dropped.json'
 
 const require = createRequire(import.meta.url)
 const fixture = (name: string) => fileURLToPath(new URL(`./__fixtures__/${name}`, import.meta.url))
@@ -26,6 +27,19 @@ describe('Images', () => {
           const hash = yield* crypto.digest('SHA-256', image.data)
 
           expect([image.width, image.height]).toEqual([40, 24])
+          expect(Hex.encode(new Uint8Array(hash))).toBe(digest)
+        }),
+      )
+    }
+
+    for (const [name, digest] of Object.entries(dropped)) {
+      it.effect(`drops the alpha of ${name} like Pillow's convert('RGB')`, () =>
+        Effect.gen(function* () {
+          const images = yield* Images
+          const crypto = yield* Crypto.Crypto
+          const image = yield* images.read(fixture(name), 'dropped')
+          const hash = yield* crypto.digest('SHA-256', image.data)
+
           expect(Hex.encode(new Uint8Array(hash))).toBe(digest)
         }),
       )

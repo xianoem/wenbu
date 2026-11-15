@@ -1,12 +1,23 @@
+import { createRequire } from 'node:module'
 import * as NodeServices from '@effect/platform-node/NodeServices'
 import { Cause, Effect, Layer, Option, Predicate, Queue, Schema, Stream } from 'effect'
 import { PROTOCOL, WorkerLine, WorkerMessage } from '../MangaRuntime'
 import { EngineOps } from './EngineOps'
+import { Images } from './Images'
+import { Inpainter } from './Inpaint'
 import { Onnx } from './Onnx'
+import { OpenCv } from './OpenCv'
 
 // onnxruntime-node 1.31 turns float16 data into Float16Array when the global exists, then its
 // native binding refuses that array type. Removing the global before it loads keeps Uint16Array.
 Reflect.deleteProperty(globalThis, 'Float16Array')
+
+const modules = createRequire(import.meta.url)
+
+const codecs = {
+  jpeg: modules.resolve('@jsquash/jpeg/codec/dec/mozjpeg_dec.wasm'),
+  webp: modules.resolve('@jsquash/webp/codec/dec/webp_dec.wasm'),
+}
 
 const firstLine = (text: string) => text.split(/\r?\n/)[0] ?? 'The engine failed.'
 
@@ -78,14 +89,25 @@ process.parentPort.once('message', (event) => {
     process.exit(1)
   }
 
+  // Stops at once with the reason: closing the layers already built could otherwise keep the process alive.
+  const stop = (cause: Cause.Cause<unknown>) =>
+    Effect.sync(() => {
+      process.stderr.write(`${Cause.pretty(cause)}\n`)
+      process.exit(1)
+    })
+
   void Effect.runPromise(
     serve(port).pipe(
       Effect.provide(
         EngineOps.layer.pipe(
-          Layer.provideMerge(Onnx.layer),
+          Layer.provideMerge(Inpainter.layer),
+          Layer.provideMerge(Images.layer(codecs)),
+          Layer.provideMerge(Layer.mergeAll(Onnx.layer, OpenCv.layer)),
           Layer.provideMerge(NodeServices.layer),
+          Layer.tapCause(stop),
         ),
       ),
+      Effect.catchCause(stop),
     ),
   )
 })
