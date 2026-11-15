@@ -11,6 +11,7 @@ export default defineConfig({
         input: {
           main: resolve('src/main/main.ts'),
           core: resolve('src/core/core.ts'),
+          engine: resolve('src/core/manga/engine/engine.ts'),
         },
       },
     },

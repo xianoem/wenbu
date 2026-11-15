@@ -22,6 +22,7 @@ import {
 } from 'effect'
 import { ChildProcess, ChildProcessSpawner } from 'effect/process'
 import { MangaError, type MangaRuntimeState, PageStage } from '#contract/Manga'
+import { engineWorker } from './EngineWorker'
 
 export interface WorkerCommand {
   readonly command: string
@@ -30,6 +31,19 @@ export interface WorkerCommand {
 }
 
 export type WorkerCommandOf = (folder: string) => WorkerCommand
+
+/** A started worker: JSON lines from it, a way to send it lines, and its error output once it has stopped. */
+export interface WorkerConnection {
+  readonly lines: Stream.Stream<string>
+  readonly send: (line: string) => Effect.Effect<void>
+  readonly output: Effect.Effect<string>
+  readonly pid: number | undefined
+}
+
+/** Starts a worker for a plugin folder. Closing the scope stops it. */
+export type WorkerLauncher = (
+  folder: string,
+) => Effect.Effect<WorkerConnection, MangaError, Scope.Scope>
 
 export interface RunOptions {
   readonly [option: string]: string | number | boolean
@@ -110,7 +124,7 @@ export interface RunHandle {
 
 const RunScoped = { run: Schema.String }
 
-const WorkerLine = Schema.Union([
+export const WorkerLine = Schema.Union([
   Schema.Struct({ event: Schema.Literal('ready'), protocol: Schema.Int }),
   Schema.Struct({ event: Schema.Literal('error'), message: Schema.String }),
   Schema.Struct({ event: Schema.Literal('loading-models'), ...RunScoped }),
@@ -156,11 +170,11 @@ const WorkerLine = Schema.Union([
   }),
 ])
 
-type WorkerLine = typeof WorkerLine.Type
+export type WorkerLine = typeof WorkerLine.Type
 
 const decodeLine = Schema.decodeUnknownOption(Schema.fromJsonString(WorkerLine))
 
-const WorkerMessage = Schema.Union([
+export const WorkerMessage = Schema.Union([
   Schema.Struct({
     type: Schema.Literal('run'),
     run: Schema.String,
@@ -181,7 +195,7 @@ type WorkerMessage = typeof WorkerMessage.Type
 
 const encodeMessage = Schema.encodeEffect(Schema.fromJsonString(WorkerMessage))
 
-const PROTOCOL = 2
+export const PROTOCOL = 2
 
 const STDERR_TAIL = 4_000
 
@@ -211,14 +225,13 @@ export class MangaRuntime extends Context.Service<
     readonly stop: Effect.Effect<void>
   }
 >()('wenbu/core/manga/MangaRuntime') {
-  static readonly layer = (
-    commandOf: WorkerCommandOf,
+  static readonly layerWith = (
+    launch: WorkerLauncher,
     options: { readonly idle: Duration.Input },
   ) =>
     Layer.effect(
       MangaRuntime,
       Effect.gen(function* () {
-        const spawner = yield* ChildProcessSpawner.ChildProcessSpawner
         const state = yield* SubscriptionRef.make<MangaRuntimeState>({ status: 'stopped' })
         const current = yield* Ref.make<Option.Option<Worker>>(Option.none())
         const idleTimer = yield* Ref.make<Option.Option<Fiber.Fiber<void>>>(Option.none())
@@ -279,41 +292,16 @@ export class MangaRuntime extends Context.Service<
           yield* setState({ status: 'starting' })
 
           const scope = yield* Scope.make()
-          const input = yield* Queue.unbounded<string, Cause.Done>()
           const ready = yield* Deferred.make<void, MangaError>()
-          const stderr = yield* Ref.make('')
           const runs = yield* Ref.make<Option.Option<ActiveRun>>(Option.none())
 
           const editors = yield* Ref.make<
             ReadonlyMap<number, Deferred.Deferred<unknown, MangaError>>
           >(new Map())
 
-          const { command, args, env } = commandOf(folder)
-
-          const handle = yield* spawner
-            .spawn(
-              ChildProcess.make(command, args, {
-                stdin: Stream.fromQueue(input).pipe(Stream.encodeText),
-                stdout: 'pipe',
-                stderr: 'pipe',
-                env,
-                extendEnv: true,
-              }),
-            )
-            .pipe(
-              Scope.provide(scope),
-              Effect.mapError(() =>
-                failed('The manga worker could not be started. Reinstall the plugin.'),
-              ),
-            )
-
-          yield* handle.stderr.pipe(
-            Stream.decodeText,
-            Stream.runForEach((chunk) =>
-              Ref.update(stderr, (tail) => (tail + chunk).slice(-STDERR_TAIL)),
-            ),
-            Effect.ignore,
-            Effect.forkIn(scope),
+          const connection = yield* launch(folder).pipe(
+            Scope.provide(scope),
+            Effect.tapError(() => Scope.close(scope, Exit.void)),
           )
 
           const route = (line: WorkerLine) =>
@@ -378,7 +366,7 @@ export class MangaRuntime extends Context.Service<
             })
 
           const onExit = Effect.gen(function* () {
-            const tail = lastLines(yield* Ref.get(stderr))
+            const tail = lastLines(yield* connection.output)
 
             const message =
               tail === '' ? 'The manga worker stopped.' : `The manga worker stopped: ${tail}`
@@ -403,29 +391,18 @@ export class MangaRuntime extends Context.Service<
               yield* setState({ status: 'failed', message })
 
               yield* Effect.logError('Sidecar exited with an error').pipe(
-                Effect.annotateLogs({ sidecar: 'manga-worker', pid: handle.pid, output: tail }),
+                Effect.annotateLogs({ sidecar: 'manga-worker', pid: connection.pid, output: tail }),
               )
             }
           })
 
-          yield* handle.stdout.pipe(
-            Stream.decodeText,
-            Stream.splitLines,
+          yield* connection.lines.pipe(
             Stream.runForEach((text) =>
               Option.match(decodeLine(text), { onNone: () => Effect.void, onSome: route }),
             ),
             Effect.ignore,
             Effect.ensuring(onExit),
             Effect.forkIn(scope),
-          )
-
-          yield* Scope.addFinalizer(
-            scope,
-            Queue.end(input).pipe(
-              Effect.andThen(handle.exitCode),
-              Effect.timeout('5 seconds'),
-              Effect.ignore,
-            ),
           )
 
           yield* Deferred.await(ready).pipe(
@@ -442,11 +419,7 @@ export class MangaRuntime extends Context.Service<
             runs,
             editors,
             send: (message) =>
-              encodeMessage(message).pipe(
-                Effect.orDie,
-                Effect.flatMap((line) => Queue.offer(input, `${line}\n`)),
-                Effect.asVoid,
-              ),
+              encodeMessage(message).pipe(Effect.orDie, Effect.flatMap(connection.send)),
           }
 
           yield* Ref.set(current, Option.some(worker))
@@ -556,10 +529,27 @@ export class MangaRuntime extends Context.Service<
       }),
     )
 
+  static readonly layer = (
+    commandOf: WorkerCommandOf,
+    options: { readonly idle: Duration.Input },
+  ) =>
+    Layer.unwrap(
+      Effect.gen(function* () {
+        const spawner = yield* ChildProcessSpawner.ChildProcessSpawner
+
+        return MangaRuntime.layerWith(childWorker(spawner, commandOf), options)
+      }),
+    )
+
   static readonly live = Layer.unwrap(
     Effect.gen(function* () {
       const resources = yield* Config.String('WENBU_RESOURCES_DIR')
+      const engine = yield* Config.String('WENBU_MANGA_ENGINE').pipe(Config.withDefault('python'))
       const path = yield* Path.Path
+
+      if (engine === 'native') {
+        return MangaRuntime.layerWith(engineWorker, { idle: '10 minutes' })
+      }
 
       return MangaRuntime.layer((folder) => workerCommand(resources, folder, path), {
         idle: '10 minutes',
@@ -567,6 +557,63 @@ export class MangaRuntime extends Context.Service<
     }),
   )
 }
+
+/** A worker started as a child process that speaks NDJSON over stdio. */
+export const childWorker =
+  (
+    spawner: ChildProcessSpawner.ChildProcessSpawner['Service'],
+    commandOf: WorkerCommandOf,
+  ): WorkerLauncher =>
+  (folder) =>
+    Effect.gen(function* () {
+      const input = yield* Queue.unbounded<string, Cause.Done>()
+      const stderr = yield* Ref.make('')
+      const { command, args, env } = commandOf(folder)
+
+      const handle = yield* spawner
+        .spawn(
+          ChildProcess.make(command, args, {
+            stdin: Stream.fromQueue(input).pipe(Stream.encodeText),
+            stdout: 'pipe',
+            stderr: 'pipe',
+            env,
+            extendEnv: true,
+          }),
+        )
+        .pipe(
+          Effect.mapError(() =>
+            failed('The manga worker could not be started. Reinstall the plugin.'),
+          ),
+        )
+
+      yield* handle.stderr.pipe(
+        Stream.decodeText,
+        Stream.runForEach((chunk) =>
+          Ref.update(stderr, (tail) => (tail + chunk).slice(-STDERR_TAIL)),
+        ),
+        Effect.ignore,
+        Effect.forkScoped,
+      )
+
+      yield* Effect.addFinalizer(() =>
+        Queue.end(input).pipe(
+          Effect.andThen(handle.exitCode),
+          Effect.timeout('5 seconds'),
+          Effect.ignore,
+        ),
+      )
+
+      return {
+        lines: handle.stdout.pipe(
+          Stream.decodeText,
+          Stream.splitLines,
+          Stream.ignore({ log: false }),
+        ),
+        send: (line) => Queue.offer(input, `${line}\n`).pipe(Effect.asVoid),
+        output: Ref.get(stderr),
+        pid: handle.pid,
+      } satisfies WorkerConnection
+    })
 
 export const workerCommand = (
   resources: string,

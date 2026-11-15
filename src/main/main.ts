@@ -28,6 +28,8 @@ import {
   ClipboardImage,
   LiveControlsWindow,
   MainLogEntry,
+  MangaEngineStart,
+  MangaEngineStop,
   OverlayWindow,
   PageFetch,
   SourceSignIn,
@@ -48,6 +50,7 @@ import { coreCrashBudget } from './crashBudget'
 import { type CredentialKey, loadCredentialKey, type SecretProtector } from './credentialKey'
 import { diagnosticsReport } from './diagnosticsReport'
 import { liveControlsWindow } from './liveControlsWindow'
+import { mangaEngines } from './mangaEngines'
 import { overlayWindow } from './overlayWindow'
 import { subtitleWindow } from './subtitleWindow'
 import { browserSignIns, chromeAgent } from './browserSignIn'
@@ -355,6 +358,35 @@ const startNovelPages = (core: CoreSupervisor) => {
       Effect.runFork(Effect.map(pages.fetch(message), (page) => core.postMessage(page, [])))
     }
   })
+}
+
+const isMangaEngineStart = Schema.is(MangaEngineStart)
+
+const isMangaEngineStop = Schema.is(MangaEngineStop)
+
+const startMangaEngines = (core: CoreSupervisor) => {
+  const engines = mangaEngines({
+    entry: join(import.meta.dirname, 'engine.js'),
+    env: () => process.env,
+    post: (message, ports) => core.postMessage(message, ports),
+    onExit: (id, exitCode, output) => {
+      if (exitCode !== 0) {
+        log.error('Manga engine exited', { id, exitCode }, output === '' ? undefined : output)
+      }
+    },
+  })
+
+  core.on('message', (message) => {
+    if (isMangaEngineStart(message)) {
+      engines.start(message)
+    }
+
+    if (isMangaEngineStop(message)) {
+      engines.stop(message)
+    }
+  })
+
+  app.on('will-quit', engines.stopAll)
 }
 
 const isUpdateWatch = Schema.is(UpdateWatch)
@@ -757,6 +789,7 @@ const start = Effect.gen(function* () {
   startLiveControls(core)
   startSignIns(core)
   startNovelPages(core)
+  startMangaEngines(core)
   mainWindow = createWindow(core)
   yield* Effect.forkDetach(watchClipboard(core))
   yield* Effect.forkDetach(startUpdates(core))
