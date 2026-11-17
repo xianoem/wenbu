@@ -1,5 +1,31 @@
 [
   {
+    "version": "0.3.0",
+    "date": "2026-11-17",
+    "changes": [
+      {
+        "kind": "new",
+        "area": "manga",
+        "text": "Translate manga with Wenbu Manga Engine, installed from the Plugins page"
+      },
+      {
+        "kind": "new",
+        "area": "manga",
+        "text": "Choose which installed manga engine is on with its switch on the Plugins page"
+      },
+      {
+        "kind": "new",
+        "area": "manga",
+        "text": "Add the optional NVIDIA pack to run Wenbu Manga Engine about twice as fast on RTX graphics cards"
+      },
+      {
+        "kind": "fixed",
+        "area": "manga",
+        "text": "Letter manga text in its own colour, not with red and blue swapped"
+      }
+    ]
+  },
+  {
     "version": "0.2.0",
     "date": "2026-11-14",
     "changes": [
