@@ -6,6 +6,7 @@ import type { ReactNode } from 'react'
 import { returnScreenAtom, screenAtom } from '#lib/navigation'
 import { Button } from '#ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '#ui/select'
+import { ScrollArea } from '#ui/scroll-area'
 import { LevelDot } from './components/LevelDot'
 import {
   featureFilterAtom,
@@ -136,7 +137,7 @@ export function LogsSidebar() {
         </FilterButton>
       ))}
       <GroupLabel>Feature</GroupLabel>
-      <div className="flex min-h-0 flex-col gap-0.5 overflow-y-auto">
+      <ScrollArea className="min-h-0" contentClassName="flex flex-col gap-0.5">
         <FilterButton active={feature === ''} onClick={() => setFeature('')}>
           <HashIcon className="text-muted-foreground" />
           All features
@@ -147,7 +148,7 @@ export function LogsSidebar() {
             {featureLabel(id)}
           </FilterButton>
         ))}
-      </div>
+      </ScrollArea>
       <div className="flex-1" />
       <GroupLabel>Launch</GroupLabel>
       <LaunchPicker />

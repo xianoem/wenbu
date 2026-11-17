@@ -3,6 +3,7 @@ import { cn } from 'cn'
 import type { GameEngine } from '#contract/Library'
 import { type Fit, type FitKind, fitOf, measure } from '#contract/TextFit'
 import { Button } from '#ui/button'
+import { ScrollArea } from '#ui/scroll-area'
 
 const kindLabels: Record<FitKind, string> = {
   message: 'Message window',
@@ -56,7 +57,11 @@ export function FitPreview({
 
   return (
     <div className="mt-2.5 rounded-2xl bg-card p-3">
-      <div className="overflow-x-auto rounded-lg bg-linear-to-b from-[oklch(0.33_0.06_260/0.92)] to-[oklch(0.22_0.05_260/0.92)] p-2 shadow-[inset_0_0_0_2px_oklch(1_0_0/0.5)]">
+      <ScrollArea
+        scrollbars="horizontal"
+        className="rounded-lg bg-linear-to-b from-[oklch(0.33_0.06_260/0.92)] to-[oklch(0.22_0.05_260/0.92)] shadow-[inset_0_0_0_2px_oklch(1_0_0/0.5)]"
+        viewport={{ className: 'p-2' }}
+      >
         <div
           className="relative border-r border-dashed border-warning/70 leading-[1.45] whitespace-pre text-white"
           style={{ width: fit.maxWidth * scale, fontSize: fit.fontSize * scale }}
@@ -75,7 +80,7 @@ export function FitPreview({
             )
           })}
         </div>
-      </div>
+      </ScrollArea>
       <div className="mt-2 flex flex-wrap items-center gap-2 text-xs">
         <span
           className={cn(

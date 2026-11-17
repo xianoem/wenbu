@@ -106,8 +106,10 @@ function Connected({ state }: { readonly state: LiveControlsState }) {
           </AlertDescription>
         </Alert>
       )}
-      <TabsContent value="general" className="min-h-0 overflow-auto">
-        <GeneralTab state={state} />
+      <TabsContent value="general" className="min-h-0 overflow-hidden">
+        <ScrollArea className="h-full">
+          <GeneralTab state={state} />
+        </ScrollArea>
       </TabsContent>
       <TabsContent value="actors" className="min-h-0 overflow-hidden">
         <ActorsTab />

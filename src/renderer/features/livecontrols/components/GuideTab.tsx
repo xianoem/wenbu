@@ -25,6 +25,7 @@ import { InputGroup, InputGroupAddon, InputGroupButton, InputGroupInput } from '
 import { Popover, PopoverContent, PopoverTrigger } from '#ui/popover'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '#ui/select'
 import { Spinner } from '#ui/spinner'
+import { ScrollArea } from '#ui/scroll-area'
 import { useLlmSettings } from '../../settings/llm'
 import {
   guideIndexAtom,
@@ -338,7 +339,13 @@ export function GuideTab({
           ))}
         </div>
       ) : null}
-      <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto [mask-image:linear-gradient(to_bottom,transparent,#000_16px)] pt-2">
+      <ScrollArea
+        className="min-h-0 flex-1"
+        viewport={{
+          className: '[mask-image:linear-gradient(to_bottom,transparent,#000_16px)] pt-2',
+        }}
+        contentClassName="flex flex-col gap-3"
+      >
         {view === 'around' ? (
           <FactListCard
             title={`On ${here?.mapName ?? 'this map'} now`}
@@ -401,7 +408,7 @@ export function GuideTab({
             <AlertDescription>{problem ?? hereProblem}</AlertDescription>
           </Alert>
         )}
-      </div>
+      </ScrollArea>
       {showSuggestions ? <Suggestions onAsk={submit} onAround={() => setView('around')} /> : null}
       <InputGroup className="h-10 rounded-full pl-1.5">
         <InputGroupAddon>

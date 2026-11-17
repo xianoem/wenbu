@@ -15,6 +15,7 @@ import {
   DialogTitle,
 } from '#ui/dialog'
 import { Label } from '#ui/label'
+import { ScrollArea } from '#ui/scroll-area'
 import { createCgPackAtom, imageFoldersAtom } from '../library'
 
 export function CgPackDialog({
@@ -77,7 +78,11 @@ export function CgPackDialog({
         </DialogHeader>
 
         {pack === undefined ? (
-          <div className="max-h-72 divide-y overflow-y-auto rounded-xl border">
+          <ScrollArea
+            className="rounded-xl border"
+            viewport={{ className: 'max-h-72' }}
+            contentClassName="divide-y"
+          >
             {available.map((folder) => (
               <Label key={folder} className="gap-2.5 px-3.5 py-2.5 font-normal">
                 <Checkbox checked={chosen.has(folder)} onCheckedChange={() => toggle(folder)} />
@@ -87,7 +92,7 @@ export function CgPackDialog({
             {loadError === undefined && available.length === 0 ? (
               <p className="px-3.5 py-2.5 text-muted-foreground">Looking for image folders…</p>
             ) : null}
-          </div>
+          </ScrollArea>
         ) : (
           <p className="text-sm">
             {`Copied ${pack.imageCount.toLocaleString('en-US')} images`}

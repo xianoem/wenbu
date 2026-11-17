@@ -36,6 +36,7 @@ import {
   DropdownMenuTrigger,
 } from '#ui/dropdown-menu'
 import { InputGroup, InputGroupAddon, InputGroupInput } from '#ui/input-group'
+import { closestScrollViewport } from '#ui/scroll-area'
 import { ContinueCard, FolderTile, GalleryTile } from './components/EntryTiles'
 import { VirtualGrid } from './components/VirtualGrid'
 import { GalleryPage } from './GalleryPage'
@@ -418,19 +419,19 @@ function useScrollMemory(view: string) {
   const anchor = useRef<HTMLDivElement>(null)
 
   useLayoutEffect(() => {
-    const main = anchor.current?.closest('main')
+    const page = anchor.current === null ? null : closestScrollViewport(anchor.current)
 
-    if (main === null || main === undefined) {
+    if (page === null) {
       return
     }
 
-    main.scrollTop = scrolledTo.get(view) ?? 0
+    page.scrollTop = scrolledTo.get(view) ?? 0
 
-    const remember = () => scrolledTo.set(view, main.scrollTop)
+    const remember = () => scrolledTo.set(view, page.scrollTop)
 
-    main.addEventListener('scroll', remember, { passive: true })
+    page.addEventListener('scroll', remember, { passive: true })
 
-    return () => main.removeEventListener('scroll', remember)
+    return () => page.removeEventListener('scroll', remember)
   }, [view])
 
   return anchor

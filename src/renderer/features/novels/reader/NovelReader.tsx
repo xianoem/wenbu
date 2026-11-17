@@ -451,7 +451,11 @@ export function NovelReader({ opening }: { readonly opening: NovelReaderOpening 
           </div>
         </div>
       </TitleBar>
-      <div ref={scroller} className="min-h-0 flex-1 overflow-y-auto" onScroll={scrolled}>
+      <ScrollArea
+        className="min-h-0 flex-1"
+        viewport={{ ref: scroller, onScroll: scrolled }}
+        contentClassName="flex flex-col"
+      >
         {away !== null &&
         away !== undefined &&
         away >= RECAP_AFTER_DAYS &&
@@ -464,7 +468,7 @@ export function NovelReader({ opening }: { readonly opening: NovelReaderOpening 
           />
         ) : null}
         {view === undefined ? (
-          <div className="flex h-full items-center justify-center text-muted-foreground">
+          <div className="flex flex-1 items-center justify-center text-muted-foreground">
             {AsyncResult.isFailure(result) ? (
               'This chapter could not be opened.'
             ) : (
@@ -479,7 +483,7 @@ export function NovelReader({ opening }: { readonly opening: NovelReaderOpening 
             onPaste={() => setPasting(true)}
           />
         )}
-      </div>
+      </ScrollArea>
       <BottomBar view={view} progress={progress} onOpen={open} />
       <PasteDialog
         open={pasting}

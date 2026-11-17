@@ -4,6 +4,7 @@ import { type ReactNode, useEffect, useEffectEvent, useLayoutEffect, useRef, use
 import { pageImageUrl } from '#contract/PageImage'
 import type { GamePicture, PictureStyle, ShownLine } from '#contract/Pictures'
 import { Button } from '#ui/button'
+import { ScrollArea } from '#ui/scroll-area'
 import { PictureCanvas } from './PictureCanvas'
 
 const percent = (part: number, whole: number) => `${(part / Math.max(1, whole)) * 100}%`
@@ -209,74 +210,76 @@ export function PictureStage({
   }
 
   return (
-    <div
-      ref={scroller}
-      className={cn(
-        'relative min-h-0 flex-1 overflow-auto px-6 pt-20 pb-32 [container-type:size]',
-        cursor(),
-      )}
-      onPointerDown={(event) => {
-        if (event.button !== 0 || isControl(event.target)) {
-          return
-        }
-
-        event.currentTarget.setPointerCapture(event.pointerId)
-
-        if (tool === 'draw') {
-          const start = pictureAt(event.clientX, event.clientY)
-
-          setDraft({ start, end: start })
-
-          return
-        }
-
-        pan.current = {
-          from: { x: event.clientX, y: event.clientY },
-          scroll: { x: event.currentTarget.scrollLeft, y: event.currentTarget.scrollTop },
-          moved: false,
-        }
-      }}
-      onPointerMove={(event) => {
-        if (draft !== undefined) {
-          setDraft({ ...draft, end: pictureAt(event.clientX, event.clientY) })
-
-          return
-        }
-
-        const panning = pan.current
-
-        if (panning === undefined) {
-          return
-        }
-
-        const dx = event.clientX - panning.from.x
-        const dy = event.clientY - panning.from.y
-
-        panning.moved = panning.moved || Math.abs(dx) + Math.abs(dy) > 3
-        event.currentTarget.scrollLeft = panning.scroll.x - dx
-        event.currentTarget.scrollTop = panning.scroll.y - dy
-      }}
-      onPointerUp={() => {
-        if (draft !== undefined) {
-          const box = boxOf(draft.start, draft.end)
-
-          setDraft(undefined)
-
-          if (box.w >= MIN_DRAWN && box.h >= MIN_DRAWN) {
-            onDraw(box)
+    <ScrollArea
+      scrollbars="both"
+      className="min-h-0 flex-1"
+      viewport={{
+        ref: scroller,
+        className: cn('relative px-6 pt-20 pb-32 [container-type:size]', cursor()),
+        onPointerDown: (event) => {
+          if (event.button !== 0 || isControl(event.target)) {
+            return
           }
 
-          return
-        }
+          event.currentTarget.setPointerCapture(event.pointerId)
 
-        if (pan.current !== undefined && !pan.current.moved) {
-          onSelect(undefined)
-        }
+          if (tool === 'draw') {
+            const start = pictureAt(event.clientX, event.clientY)
 
-        pan.current = undefined
+            setDraft({ start, end: start })
+
+            return
+          }
+
+          pan.current = {
+            from: { x: event.clientX, y: event.clientY },
+            scroll: { x: event.currentTarget.scrollLeft, y: event.currentTarget.scrollTop },
+            moved: false,
+          }
+        },
+        onPointerMove: (event) => {
+          if (draft !== undefined) {
+            setDraft({ ...draft, end: pictureAt(event.clientX, event.clientY) })
+
+            return
+          }
+
+          const panning = pan.current
+
+          if (panning === undefined) {
+            return
+          }
+
+          const dx = event.clientX - panning.from.x
+          const dy = event.clientY - panning.from.y
+
+          panning.moved = panning.moved || Math.abs(dx) + Math.abs(dy) > 3
+          event.currentTarget.scrollLeft = panning.scroll.x - dx
+          event.currentTarget.scrollTop = panning.scroll.y - dy
+        },
+        onPointerUp: () => {
+          if (draft !== undefined) {
+            const box = boxOf(draft.start, draft.end)
+
+            setDraft(undefined)
+
+            if (box.w >= MIN_DRAWN && box.h >= MIN_DRAWN) {
+              onDraw(box)
+            }
+
+            return
+          }
+
+          if (pan.current !== undefined && !pan.current.moved) {
+            onSelect(undefined)
+          }
+
+          pan.current = undefined
+        },
       }}
+      contentClassName="grid"
     >
-      <div className="grid min-h-full w-max min-w-full place-items-center">
+      <div className="grid w-max min-w-full place-items-center">
         <div
           ref={frame}
           className="relative shadow-[0_16px_40px_rgb(0_0_0/0.5)]"
@@ -366,6 +369,6 @@ export function PictureStage({
           )}
         </div>
       </div>
-    </div>
+    </ScrollArea>
   )
 }

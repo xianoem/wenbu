@@ -18,6 +18,7 @@ import { useApplyTheme } from './features/appearance/appearance'
 import { SettingsPage } from './features/settings/SettingsPage'
 import { LowSpaceNotice } from './features/storage/LowSpaceNotice'
 import { coreStoppedAtom } from '#lib/coreStopped'
+import { ScrollArea } from '#ui/scroll-area'
 import {
   mangaEditorAtom,
   novelReaderAtom,
@@ -135,17 +136,27 @@ export function App() {
         <Sidebar />
         <main
           className={cn(
-            'flex min-w-0 flex-1 flex-col overflow-x-hidden overflow-y-auto border-t border-sidebar-border bg-background px-10 pt-7 pb-12 transition-[border-radius] duration-200',
+            'min-w-0 flex-1 border-t border-sidebar-border bg-background transition-[border-radius] duration-200',
             sidebarOpen && 'rounded-tl-xl border-l',
-            logs && 'overflow-y-hidden px-7 pt-6 pb-0',
           )}
         >
-          <div
-            className={cn('mx-auto flex w-full flex-1 flex-col', logs ? 'min-h-0' : 'max-w-5xl')}
+          <ScrollArea
+            className="size-full rounded-[inherit]"
+            viewport={{
+              className: cn(
+                'overflow-x-hidden! px-10 pt-7 pb-12',
+                logs && 'overflow-y-hidden! px-7 pt-6 pb-0',
+              ),
+            }}
+            contentClassName={cn('flex flex-col', logs && 'h-full')}
           >
-            {logs ? null : <LowSpaceNotice />}
-            <CurrentScreen />
-          </div>
+            <div
+              className={cn('mx-auto flex w-full flex-1 flex-col', logs ? 'min-h-0' : 'max-w-5xl')}
+            >
+              {logs ? null : <LowSpaceNotice />}
+              <CurrentScreen />
+            </div>
+          </ScrollArea>
         </main>
       </div>
     </div>

@@ -43,6 +43,7 @@ import {
   DropdownMenuContent,
   DropdownMenuTrigger,
 } from '#ui/dropdown-menu'
+import { ScrollArea } from '#ui/scroll-area'
 import { galleriesKeys, galleryAtom, saveReadingAtom } from '../galleries'
 import { bitmapCache } from './bitmapCache'
 import { pageDecoders } from './decoders'
@@ -221,7 +222,7 @@ function ScrollStage({
   }, [zoom, virtualizer])
 
   return (
-    <div ref={setScroller} className="absolute inset-0 overflow-auto">
+    <ScrollArea scrollbars="both" className="absolute inset-0" viewport={{ ref: setScroller }}>
       <div
         className="relative"
         style={{ height: virtualizer.getTotalSize(), width: Math.max(1, zoom) * stage.width }}
@@ -246,7 +247,7 @@ function ScrollStage({
           )
         })}
       </div>
-    </div>
+    </ScrollArea>
   )
 }
 
@@ -653,10 +654,15 @@ function Stage({
             onVisible={setPage}
           />
         ) : (
-          <div ref={viewportRef} className="absolute inset-0 overflow-auto">
+          <ScrollArea
+            scrollbars="both"
+            className="absolute inset-0"
+            viewport={{ ref: viewportRef }}
+            contentClassName="grid"
+          >
             <div
               className={cn(
-                'flex min-h-full w-max min-w-full justify-center',
+                'flex w-max min-w-full justify-center',
                 fit === 'width' ? 'items-start' : 'items-center',
               )}
             >
@@ -675,7 +681,7 @@ function Stage({
                 )
               })}
             </div>
-          </div>
+          </ScrollArea>
         )}
 
         {layout === 'scroll' ? null : (

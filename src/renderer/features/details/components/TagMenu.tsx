@@ -8,6 +8,7 @@ import { Button } from '#ui/button'
 import { InputGroup, InputGroupAddon, InputGroupInput } from '#ui/input-group'
 import { Popover, PopoverContent, PopoverTrigger } from '#ui/popover'
 import { Spinner } from '#ui/spinner'
+import { ScrollArea } from '#ui/scroll-area'
 import { detailsErrorOf, dlsiteGenresAtom, dlsiteListKeys, setFilterAtom } from '../details'
 
 const shownRows = 60
@@ -96,7 +97,7 @@ export function TagMenu({ chosen }: { readonly chosen: ReadonlyArray<Genre> }) {
             onChange={(event) => setQuery(event.target.value)}
           />
         </InputGroup>
-        <div className="mt-2 max-h-[320px] overflow-y-auto pr-1">
+        <ScrollArea className="mt-2" viewport={{ className: 'max-h-[320px] pr-2.5' }}>
           {AsyncResult.isInitial(tags) ? (
             <div className="flex items-center gap-2 px-2 py-4 text-sm text-muted-foreground">
               <Spinner /> Loading DLsite’s tags…
@@ -118,7 +119,7 @@ export function TagMenu({ chosen }: { readonly chosen: ReadonlyArray<Genre> }) {
           {listed.length === 0 && AsyncResult.isSuccess(tags) ? (
             <p className="px-2 py-3 text-sm text-muted-foreground">No tag is named that.</p>
           ) : null}
-        </div>
+        </ScrollArea>
       </PopoverContent>
     </Popover>
   )

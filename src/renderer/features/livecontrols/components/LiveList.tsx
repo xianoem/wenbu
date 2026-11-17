@@ -46,11 +46,6 @@ export function LiveList<A>({
     overscan: 6,
   })
 
-  const setScrollAreaRoot = (node: HTMLDivElement | null) =>
-    setScrollElement(
-      node?.querySelector<HTMLDivElement>('[data-slot="scroll-area-viewport"]') ?? null,
-    )
-
   const body = () => {
     if (error !== undefined && status === 'failed') {
       return <div className="p-4 text-sm text-destructive">{error}</div>
@@ -102,7 +97,7 @@ export function LiveList<A>({
           {statusLine(status, noun, visible.length)}
         </div>
       </div>
-      <ScrollArea ref={setScrollAreaRoot} className="min-h-0 flex-1">
+      <ScrollArea className="min-h-0 flex-1" viewport={{ ref: setScrollElement }}>
         {body()}
       </ScrollArea>
     </section>

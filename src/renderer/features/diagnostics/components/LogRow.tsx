@@ -3,6 +3,7 @@ import { cn } from 'cn'
 import type { LogEntry } from '#contract/Diagnostics'
 import { formatLogEntry } from '#contract/LogText'
 import { Button } from '#ui/button'
+import { ScrollArea } from '#ui/scroll-area'
 import { featureLabel, fieldsText, formatLogTime, levelLabels, processLabel } from '../diagnostics'
 import { levelText } from './LevelDot'
 
@@ -24,9 +25,11 @@ function Details({ entry }: { readonly entry: LogEntry }) {
         </dl>
       )}
       {entry.cause === undefined ? null : (
-        <pre className="overflow-x-auto rounded-[10px] bg-black/25 px-2.5 py-2 font-mono text-[11px] leading-relaxed text-muted-foreground">
-          {entry.cause}
-        </pre>
+        <ScrollArea scrollbars="horizontal" className="rounded-[10px] bg-black/25">
+          <pre className="w-max min-w-full px-2.5 py-2 font-mono text-[11px] leading-relaxed text-muted-foreground">
+            {entry.cause}
+          </pre>
+        </ScrollArea>
       )}
       <div>
         <Button

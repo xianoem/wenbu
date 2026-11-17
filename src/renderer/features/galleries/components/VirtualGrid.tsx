@@ -1,5 +1,6 @@
 import { useVirtualizer } from '@tanstack/react-virtual'
 import { type ReactNode, useLayoutEffect, useRef, useState } from 'react'
+import { closestScrollViewport } from '#ui/scroll-area'
 
 export function VirtualGrid<A>({
   items,
@@ -25,19 +26,19 @@ export function VirtualGrid<A>({
 
   useLayoutEffect(() => {
     const element = grid.current
-    const main = element?.closest('main') ?? null
+    const page = element === null ? null : closestScrollViewport(element)
 
-    if (element === null || main === null) {
+    if (element === null || page === null) {
       return
     }
 
-    setScroller(main)
+    setScroller(page)
 
     const measure = () => {
       setWidth(element.clientWidth)
 
       setOffset(
-        element.getBoundingClientRect().top - main.getBoundingClientRect().top + main.scrollTop,
+        element.getBoundingClientRect().top - page.getBoundingClientRect().top + page.scrollTop,
       )
     }
 
@@ -46,7 +47,7 @@ export function VirtualGrid<A>({
     const observer = new ResizeObserver(measure)
 
     observer.observe(element)
-    observer.observe(main.firstElementChild ?? main)
+    observer.observe(page.firstElementChild ?? page)
 
     return () => observer.disconnect()
   }, [])

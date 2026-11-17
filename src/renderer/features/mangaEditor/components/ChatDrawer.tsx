@@ -10,6 +10,7 @@ import { useState } from 'react'
 import type { ChatReply } from '#contract/MangaEditor'
 import { Button } from '#ui/button'
 import { Textarea } from '#ui/textarea'
+import { ScrollArea } from '#ui/scroll-area'
 import { LineNumber, Parts } from './Lines'
 
 export interface ChatEntry {
@@ -65,7 +66,11 @@ export function ChatDrawer({
           <XIcon />
         </Button>
       </div>
-      <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto p-4">
+      <ScrollArea
+        className="min-h-0 flex-1"
+        viewport={{ className: 'p-4' }}
+        contentClassName="flex flex-col gap-3"
+      >
         <div className="flex flex-wrap gap-1.5">
           <span className="flex h-7 items-center gap-1.5 rounded-full bg-muted px-2.5 text-[12px]">
             <FileIcon />
@@ -133,7 +138,7 @@ export function ChatDrawer({
           key={`${entries.length}-${waiting}`}
           ref={(node) => node?.scrollIntoView({ block: 'end' })}
         />
-      </div>
+      </ScrollArea>
       <div className="flex items-end gap-2 border-t p-3">
         <Textarea
           value={draft}

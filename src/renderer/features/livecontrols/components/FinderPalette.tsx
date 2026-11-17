@@ -6,6 +6,7 @@ import type { FinderResults, GameFact } from '#contract/GameGuide'
 import { useCoreCall } from '#lib/rpc'
 import { Dialog, DialogContent, DialogTitle } from '#ui/dialog'
 import { InputGroup, InputGroupAddon, InputGroupInput } from '#ui/input-group'
+import { ScrollArea } from '#ui/scroll-area'
 import { FactRow } from './FactRow'
 
 const SEARCH_DELAY_MS = 150
@@ -152,7 +153,12 @@ export function FinderPalette({
             </kbd>
           </InputGroupAddon>
         </InputGroup>
-        <div role="listbox" aria-label="Found in the game" className="min-h-0 overflow-y-auto pt-1">
+        <ScrollArea
+          role="listbox"
+          aria-label="Found in the game"
+          className="min-h-0"
+          viewport={{ className: 'pt-1' }}
+        >
           {problem === undefined ? null : (
             <p className="px-3 py-3 text-sm text-muted-foreground">{problem}</p>
           )}
@@ -180,7 +186,7 @@ export function FinderPalette({
               })}
             </div>
           ))}
-        </div>
+        </ScrollArea>
         {query.trim() === '' ? null : (
           <div
             role="option"

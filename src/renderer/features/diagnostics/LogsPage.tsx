@@ -86,11 +86,6 @@ export function LogsPage() {
     overscan: 12,
   })
 
-  const setScrollAreaRoot = (node: HTMLDivElement | null) =>
-    setScrollElement(
-      node?.querySelector<HTMLDivElement>('[data-slot="scroll-area-viewport"]') ?? null,
-    )
-
   const body = () => {
     if (AsyncResult.isInitial(result)) {
       return <p className="p-6 text-sm text-muted-foreground">Loading logs…</p>
@@ -178,7 +173,7 @@ export function LogsPage() {
         <span>Message</span>
       </div>
 
-      <ScrollArea ref={setScrollAreaRoot} className="min-h-0 flex-1 pb-6">
+      <ScrollArea className="min-h-0 flex-1 pb-6" viewport={{ ref: setScrollElement }}>
         {body()}
       </ScrollArea>
     </div>

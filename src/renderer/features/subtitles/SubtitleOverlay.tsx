@@ -13,6 +13,7 @@ import { AsyncResult } from 'effect/reactivity'
 import { type PointerEvent, type ReactNode, useEffect, useRef, useState } from 'react'
 import type { SubtitleLine, SubtitleState } from '#contract/Subtitles'
 import { Button } from '#ui/button'
+import { ScrollArea } from '#ui/scroll-area'
 import { Tooltip, TooltipContent, TooltipTrigger } from '#ui/tooltip'
 import {
   setSubtitleOverlayLockedAtom,
@@ -149,15 +150,19 @@ function HistoryLines({
 
   return (
     <div className="relative">
-      <div
-        ref={list}
+      <ScrollArea
         data-history
-        className="flex max-h-80 flex-col gap-3 overflow-y-auto pr-1 [scrollbar-color:rgb(255_255_255/0.25)_transparent] [scrollbar-width:thin]"
-        onWheel={(event) => {
-          if (event.deltaY > 0 && list.current !== null && atBottom(list.current)) {
-            onLive()
-          }
+        className="**:data-[slot=scroll-area-thumb]:bg-white/25"
+        viewport={{
+          ref: list,
+          className: 'max-h-80 pr-3',
+          onWheel: (event) => {
+            if (event.deltaY > 0 && list.current !== null && atBottom(list.current)) {
+              onLive()
+            }
+          },
         }}
+        contentClassName="flex flex-col gap-3"
       >
         {lines.length === 0 ? (
           <p className="text-white/55" style={{ fontSize: Math.round(size * 0.7) }}>
@@ -179,7 +184,7 @@ function HistoryLines({
             </p>
           </div>
         ))}
-      </div>
+      </ScrollArea>
       <Button
         size="sm"
         className="absolute right-0 bottom-0 h-7 rounded-full bg-white/90 px-3 text-xs text-black shadow-lg hover:bg-white"
