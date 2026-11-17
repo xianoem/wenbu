@@ -184,6 +184,8 @@ export const MangaRuntimeState = Schema.Struct({
   status: MangaRuntimeStatus,
   device: Schema.optional(Schema.String),
   message: Schema.optional(Schema.String),
+  /** How far the engine is in preparing for the graphics card, while it is. */
+  warming: Schema.optional(Schema.Struct({ done: Schema.Int, total: Schema.Int })),
 })
 
 export type MangaRuntimeState = typeof MangaRuntimeState.Type

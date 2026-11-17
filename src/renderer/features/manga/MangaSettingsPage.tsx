@@ -19,7 +19,7 @@ import {
   SelectValue,
 } from '#ui/select'
 import { Switch } from '#ui/switch'
-import { isPluginReady, pluginsAtom } from '../plugins/plugins'
+import { isMangaEngineOn, pluginsAtom } from '../plugins/plugins'
 import { type Choice, ChoiceSelect } from '../settings/components/ChoiceSelect'
 import { Note, NumberField, SettingRow, SettingsCard } from '../settings/components/SettingsCard'
 import { SettingsFooter } from '../settings/components/SettingsFooter'
@@ -516,7 +516,7 @@ function MangaSettingsForm({ saved }: { readonly saved: MangaSettings }) {
 
 export function MangaSettingsPage() {
   const result = useAtomValue(mangaSettingsAtom)
-  const pluginReady = isPluginReady(useAtomValue(pluginsAtom), 'manga-image-translator')
+  const engineOn = isMangaEngineOn(useAtomValue(pluginsAtom))
   const openScreen = useAtomSet(screenAtom)
 
   return (
@@ -524,22 +524,12 @@ export function MangaSettingsPage() {
       <h1 className="text-[28px] font-semibold tracking-tight">Manga translation</h1>
       <p className="mt-1 text-muted-foreground">
         How Wenbu translates folders of manga pages from the Manga screen. The text is found,
-        cleaned and lettered by{' '}
-        <Button
-          variant="link"
-          className="h-auto p-0 text-base font-normal"
-          onClick={() =>
-            window.wenbu.openExternal('https://github.com/zyddnys/manga-image-translator')
-          }
-        >
-          manga-image-translator
-        </Button>
-        .
+        cleaned and lettered by the manga engine that is on in Plugins.
       </p>
-      {pluginReady ? null : (
+      {engineOn ? null : (
         <div className="mt-5">
-          <Note Icon={InfoIcon} title="Needs manga-image-translator">
-            <span>It finds, cleans and letters the text. Install it from the Plugins page.</span>
+          <Note Icon={InfoIcon} title="Needs a manga engine">
+            <span>It finds, cleans and letters the text. Install one from the Plugins page.</span>
             <Button
               variant="link"
               className="h-auto self-start p-0"

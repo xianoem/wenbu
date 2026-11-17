@@ -112,6 +112,8 @@ const setup = Effect.fn(function* (options: {
       cancel: () => Effect.void,
       remove: () => Effect.void,
       test: () => Effect.void,
+      enable: () => Effect.void,
+      mangaEngine: Effect.succeed(Option.none()),
     }),
     Layer.succeed(LunaHookHost)({
       start: () => Effect.die('not used'),

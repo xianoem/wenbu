@@ -56,7 +56,7 @@ const statuses: Record<MangaRunStatus, { readonly label: string; readonly classN
 }
 
 const runtimeLabels: Record<MangaRuntimeState['status'], string> = {
-  'not-installed': 'manga-image-translator is not installed',
+  'not-installed': 'No manga engine is installed',
   stopped: 'Ready',
   starting: 'Starting the manga worker',
   'loading-models': 'Loading the models',
@@ -124,7 +124,7 @@ function ReadyLine({ runtime }: { readonly runtime: MangaRuntimeState | undefine
   if (runtime?.status === 'not-installed') {
     return (
       <p className="text-[12.5px] text-muted-foreground">
-        Needs manga-image-translator.{' '}
+        Needs a manga engine.{' '}
         <Button
           variant="link"
           className="h-auto p-0 text-[12.5px]"

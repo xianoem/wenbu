@@ -24,6 +24,10 @@ def test_bad_options_are_refused(change):
         RunOptions.parse({**BASE, **change})
 
 
+def test_the_screen_ai_folder_is_accepted_for_the_native_engine():
+    assert RunOptions.parse({**BASE, "screen_ai": "C:/plugins/screen-ai/153.05"}).screen_ai == "C:/plugins/screen-ai/153.05"
+
+
 def test_output_names_follow_the_chosen_format():
     assert output_name("C:/in/page 01.jpg", RunOptions.parse(BASE)) == "page 01.png"
     assert output_name("C:/in/page.webp", RunOptions.parse({**BASE, "output_format": "source"})) == "page.webp"

@@ -1,5 +1,7 @@
 import {
   BookOpenTextIcon,
+  CpuIcon,
+  GraphicsCardIcon,
   type Icon,
   LightningIcon,
   MusicNotesIcon,
@@ -12,6 +14,8 @@ import type { PluginId } from '#contract/Plugins'
 export const pluginMarks: Record<PluginId, { readonly Icon: Icon; readonly className: string }> = {
   'screen-ai': { Icon: ScanIcon, className: 'bg-tint-teal text-tint-teal-foreground' },
   'luna-hook': { Icon: PlugIcon, className: 'bg-tint-violet text-tint-violet-foreground' },
+  'manga-engine': { Icon: CpuIcon, className: 'bg-tint-teal text-tint-teal-foreground' },
+  'tensorrt-rtx': { Icon: GraphicsCardIcon, className: 'bg-tint-slate text-tint-slate-foreground' },
   'manga-image-translator': {
     Icon: BookOpenTextIcon,
     className: 'bg-tint-amber text-tint-amber-foreground',

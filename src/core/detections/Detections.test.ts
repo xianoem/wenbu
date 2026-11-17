@@ -68,6 +68,8 @@ const PluginsFake = (installed: boolean) =>
     cancel: () => Effect.void,
     remove: () => Effect.void,
     test: () => Effect.void,
+    enable: () => Effect.void,
+    mangaEngine: Effect.succeed(Option.none()),
   })
 
 const EnginesFake = Layer.mergeAll(

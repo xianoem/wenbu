@@ -29,6 +29,8 @@ class RunOptions:
     output_quality: int = 95
     pages_ahead: int = 3
     translation_requests: int = 3
+    # The Screen AI folder, for the native engine's second reading; this worker has no use for it.
+    screen_ai: str = ""
 
     @staticmethod
     def parse(value: Any) -> "RunOptions":

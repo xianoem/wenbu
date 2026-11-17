@@ -20,6 +20,10 @@ export const isPluginReady = (
   AsyncResult.isSuccess(result) &&
   result.value.plugins.some((plugin) => plugin.id === id && plugin.installed?.test.passed === true)
 
+/** Whether a manga engine is on, so manga pages can be translated. */
+export const isMangaEngineOn = (result: AsyncResult.AsyncResult<PluginsState, unknown>) =>
+  AsyncResult.isSuccess(result) && result.value.plugins.some((plugin) => plugin.enabled === true)
+
 export const checkPluginUpdatesAtom = Core.mutation('checkPluginUpdates')
 
 export const installPluginAtom = Core.mutation('installPlugin')
@@ -29,3 +33,5 @@ export const cancelPluginInstallAtom = Core.mutation('cancelPluginInstall')
 export const removePluginAtom = Core.mutation('removePlugin')
 
 export const testPluginAtom = Core.mutation('testPlugin')
+
+export const enablePluginAtom = Core.mutation('enablePlugin')

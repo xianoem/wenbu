@@ -16,6 +16,8 @@ import { KeyValueStore } from 'effect/persistence'
 import {
   type InstallStep,
   InstalledPlugin,
+  type MangaEngineId,
+  mangaEngineIds,
   type Plugin,
   PluginError,
   type PluginId,
@@ -29,9 +31,11 @@ import type { SpaceShortfall } from '#contract/Storage'
 import { DiskSpace, folderSize } from '../platform/DiskSpace'
 import * as SettingsStore from '../platform/SettingsStore'
 import { makeLunaHook } from './definitions/LunaHook'
+import { makeMangaEngine } from './definitions/MangaEngine'
 import { makeMangaImageTranslator } from './definitions/MangaImageTranslator'
 import { makeSpeechModels } from './definitions/SpeechModels'
 import { makeScreenAi } from './definitions/ScreenAi'
+import { makeTensorRtRtx } from './definitions/TensorRtRtx'
 import type { PluginDefinition } from './PluginDefinition'
 
 const Installed = Schema.Struct({ ...InstalledPlugin.fields, folder: Schema.String })
@@ -42,6 +46,8 @@ const Stored = Schema.Struct({
   installed: Schema.Record(Schema.String, Installed),
   latest: Schema.Record(Schema.String, PluginRelease),
   checkedAt: Schema.optional(Schema.String),
+  /** The manga engine the user turned on. */
+  mangaEngine: Schema.optional(Schema.Literals(mangaEngineIds)),
 })
 
 type Stored = typeof Stored.Type
@@ -54,6 +60,27 @@ interface Live {
 }
 
 const now = Effect.map(DateTime.now, DateTime.formatIso)
+
+const isMangaEngine = Schema.is(Schema.Literals(mangaEngineIds))
+
+/** Manga Translator came first, so it stays on until the user turns the other engine on. */
+const fallbackOrder: ReadonlyArray<MangaEngineId> = ['manga-image-translator', 'manga-engine']
+
+const isUsable = (stored: Stored, id: string) => stored.installed[id]?.test.passed === true
+
+/** The chosen manga engine while it is installed and working, else the first that is. */
+const enabledEngine = (stored: Stored): MangaEngineId | undefined =>
+  stored.mangaEngine !== undefined && isUsable(stored, stored.mangaEngine)
+    ? stored.mangaEngine
+    : fallbackOrder.find((id) => isUsable(stored, id))
+
+/** The manga engine to run, from which plugin folder. */
+export interface MangaEngine {
+  readonly engine: MangaEngineId
+  readonly folder: string
+  /** The NVIDIA TensorRT-RTX pack, which the Wenbu Manga Engine uses when it is installed. */
+  readonly nvidia: Option.Option<string>
+}
 
 const busy = () =>
   new PluginError({ reason: 'busy', message: 'This plugin is already being installed.' })
@@ -73,6 +100,10 @@ export class Plugins extends Context.Service<
     readonly cancel: (id: PluginId) => Effect.Effect<void>
     readonly remove: (id: PluginId) => Effect.Effect<void, PluginError>
     readonly test: (id: PluginId) => Effect.Effect<void, PluginError>
+    /** Turns a manga engine on, and the others off. */
+    readonly enable: (id: PluginId) => Effect.Effect<void, PluginError>
+    /** The manga engine that is on, if one is installed and working. */
+    readonly mangaEngine: Effect.Effect<Option.Option<MangaEngine>>
   }
 >()('wenbu/core/plugins/Plugins') {
   static readonly layer = <R>(options: {
@@ -180,6 +211,9 @@ export class Plugins extends Context.Service<
             ...(latest === undefined ? {} : { latest }),
             ...(install === undefined ? {} : { install }),
             ...(checkError === undefined ? {} : { checkError }),
+            ...(isMangaEngine(id) && installed !== undefined
+              ? { enabled: enabledEngine(current.stored) === id }
+              : {}),
           }
         }
 
@@ -505,6 +539,41 @@ export class Plugins extends Context.Service<
             return installed?.test.passed === true ? Option.some(installed.folder) : Option.none()
           })
 
+        const enable = Effect.fn('Plugins.enable')(function* (id: PluginId) {
+          const current = yield* SubscriptionRef.get(live)
+
+          if (!isMangaEngine(id) || !isUsable(current.stored, id)) {
+            return yield* new PluginError({
+              reason: 'unavailable',
+              message: 'Only an installed, working manga engine can be turned on.',
+            })
+          }
+
+          yield* updateStored((stored) => ({ ...stored, mangaEngine: id }))
+          yield* Effect.logInfo('Manga engine turned on').pipe(Effect.annotateLogs({ plugin: id }))
+        })
+
+        const mangaEngine = Effect.map(SubscriptionRef.get(live), (current) => {
+          const engine = enabledEngine(current.stored)
+          const installed = engine === undefined ? undefined : current.stored.installed[engine]
+          const nvidia = current.stored.installed['tensorrt-rtx']
+
+          if (engine === undefined || installed === undefined) {
+            return Option.none<MangaEngine>()
+          }
+
+          return Option.some<MangaEngine>({
+            engine,
+            folder: installed.folder,
+            nvidia:
+              engine === 'manga-engine' &&
+              nvidia !== undefined &&
+              isUsable(current.stored, 'tensorrt-rtx')
+                ? Option.some(nvidia.folder)
+                : Option.none(),
+          })
+        })
+
         const lastCheck =
           saved.checkedAt === undefined
             ? 0
@@ -514,7 +583,17 @@ export class Plugins extends Context.Service<
           yield* Effect.forkScoped(check)
         }
 
-        return Plugins.of({ state, installedFolder, check, install, cancel, remove, test })
+        return Plugins.of({
+          state,
+          installedFolder,
+          check,
+          install,
+          cancel,
+          remove,
+          test,
+          enable,
+          mangaEngine,
+        })
       }),
     )
 
@@ -526,9 +605,14 @@ export class Plugins extends Context.Service<
       return Plugins.layer({
         root: path.join(dataDir, 'plugins'),
         definitions: Effect.orDie(
-          Effect.all([makeScreenAi, makeLunaHook, makeMangaImageTranslator, makeSpeechModels]).pipe(
-            Effect.map((definitions) => definitions.flat()),
-          ),
+          Effect.all([
+            makeScreenAi,
+            makeLunaHook,
+            makeMangaEngine,
+            makeTensorRtRtx,
+            makeMangaImageTranslator,
+            makeSpeechModels,
+          ]).pipe(Effect.map((definitions) => definitions.flat())),
         ),
       })
     }),
@@ -546,6 +630,7 @@ export const PluginsRpcLive = PluginsRpc.toLayer(
       cancelPluginInstall: ({ id }) => plugins.cancel(id),
       removePlugin: ({ id }) => plugins.remove(id),
       testPlugin: ({ id }) => plugins.test(id),
+      enablePlugin: ({ id }) => plugins.enable(id),
     })
   }),
 )

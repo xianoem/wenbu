@@ -391,14 +391,17 @@ export const makeMangaImageTranslator = Effect.gen(function* () {
     yield* Effect.ignore(fs.remove(output))
 
     const handle = yield* runtime
-      .run(folder, {
-        options: {
-          model_dir: path.join(folder, 'models'),
-          font_dir: path.join(resources, 'fonts', 'Anime Ace'),
-          use_gpu: manifest.torchBackend !== 'cpu',
+      .run(
+        { engine: 'manga-image-translator', folder, nvidia: Option.none() },
+        {
+          options: {
+            model_dir: path.join(folder, 'models'),
+            font_dir: path.join(resources, 'fonts', 'Anime Ace'),
+            use_gpu: manifest.torchBackend !== 'cpu',
+          },
+          pages: [{ source: path.join(resources, 'samples', 'manga-sample.png'), output }],
         },
-        pages: [{ source: path.join(resources, 'samples', 'manga-sample.png'), output }],
-      })
+      )
       .pipe(Effect.mapError((error) => failed(error.message)))
 
     let regions = 0

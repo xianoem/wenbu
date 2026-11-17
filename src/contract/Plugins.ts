@@ -5,6 +5,8 @@ import { SpaceShortfall } from './Storage'
 export const PluginId = Schema.Literals([
   'screen-ai',
   'luna-hook',
+  'manga-engine',
+  'tensorrt-rtx',
   'manga-image-translator',
   'qwen3-asr',
   'sensevoice-small',
@@ -13,6 +15,14 @@ export const PluginId = Schema.Literals([
 ])
 
 export type PluginId = typeof PluginId.Type
+
+/** The plugins that translate manga pages. Any can be installed; one at a time is enabled. */
+export const mangaEngineIds = [
+  'manga-engine',
+  'manga-image-translator',
+] as const satisfies ReadonlyArray<PluginId>
+
+export type MangaEngineId = (typeof mangaEngineIds)[number]
 
 export const PluginPlatform = Schema.Literals(['win32', 'linux'])
 
@@ -79,6 +89,8 @@ export const Plugin = Schema.Struct({
   latest: Schema.optional(PluginRelease),
   install: Schema.optional(PluginInstall),
   checkError: Schema.optional(Schema.String),
+  /** For plugins of which one at a time is used, such as the manga engines: whether this one is. */
+  enabled: Schema.optional(Schema.Boolean),
 })
 
 export type Plugin = typeof Plugin.Type
@@ -105,4 +117,5 @@ export class PluginsRpc extends RpcGroup.make(
   Rpc.make('cancelPluginInstall', { payload: ById }),
   Rpc.make('removePlugin', { payload: ById, error: PluginError }),
   Rpc.make('testPlugin', { payload: ById, error: PluginError }),
+  Rpc.make('enablePlugin', { payload: ById, error: PluginError }),
 ) {}

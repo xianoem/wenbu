@@ -159,7 +159,7 @@ You need:
 - Visual Studio Build Tools 2022, with its C++ tools and CMake
 - The [Vulkan SDK](https://vulkan.lunarg.com)
 
-`pnpm build:native` downloads the pinned sources it needs on the first run, OpenCV 4.11 among them (95 MB), into the git-ignored `native/*/build` folders.
+`pnpm build:native` downloads the pinned sources it needs on the first run, among them OpenCV 4.11 (95 MB), Skia, HarfBuzz and ONNX Runtime with DirectML, into the git-ignored `native/*/build` folders.
 
 ```bash
 pnpm install
@@ -181,8 +181,6 @@ pnpm build
 
 Wenbu is licensed under the [GNU General Public License v3.0](LICENSE).
 
-The manga image helper (`wenbu-manga-cv.exe`) links [OpenCV](https://opencv.org) (Apache-2.0) with Intel IPP ICV (Intel Simplified Software License), and the dense CRF code from [pydensecrf](https://github.com/lucasb-eyer/pydensecrf) (MIT) with Eigen (MPL-2.0) and liblbfgs (MIT). Their licences ship in `resources/native/<platform>/licenses/wenbu-manga-cv`.
-
-The native manga engine letters with [CanvasKit](https://skia.org/docs/user/modules/canvaskit/) (Skia, BSD-3-Clause) and [harfbuzzjs](https://github.com/harfbuzz/harfbuzzjs) (HarfBuzz, MIT). Its language check uses the model of [py3langid](https://github.com/adbar/py3langid) (BSD-3-Clause), exported to a flat file.
+The manga engine (`wenbu-manga-engine.exe`) links [OpenCV](https://opencv.org) (Apache-2.0) with Intel IPP ICV (Intel Simplified Software License), [Skia](https://skia.org) (BSD-3-Clause), [HarfBuzz](https://harfbuzz.github.io) (MIT), [ONNX Runtime](https://onnxruntime.ai) (MIT) with DirectML (Microsoft software licence), [JSON for Modern C++](https://github.com/nlohmann/json) (MIT), Clipper (Boost Software License 1.0) from [pyclipper](https://github.com/fonttools/pyclipper) (MIT), and the dense CRF code from [pydensecrf](https://github.com/lucasb-eyer/pydensecrf) (MIT) with Eigen (MPL-2.0) and liblbfgs (MIT). Their licences ship in `resources/native/<platform>/licenses/wenbu-manga-engine`. Its language check uses the model of [py3langid](https://github.com/adbar/py3langid) (BSD-3-Clause), exported to a flat file.
 
 The games, manga, novels and usage in the screenshots are made up for this page.

@@ -18,19 +18,29 @@ import {
   Scope,
   Semaphore,
   Stream,
+  Struct,
   SubscriptionRef,
 } from 'effect'
 import { ChildProcess, ChildProcessSpawner } from 'effect/process'
 import { MangaError, type MangaRuntimeState, PageStage } from '#contract/Manga'
-import { engineWorker } from './EngineWorker'
+import type { MangaEngine } from '../plugins/Plugins'
+
+export type MangaWorker = MangaEngine
+
+const workerKey = (worker: MangaWorker) =>
+  [worker.engine, worker.folder, Option.getOrElse(worker.nvidia, () => '')].join('|')
 
 export interface WorkerCommand {
   readonly command: string
   readonly args: ReadonlyArray<string>
   readonly env: Readonly<Record<string, string>>
+  /** Asks the worker to warm up once it is ready. */
+  readonly warm?: boolean
+  /** How long a closing worker gets to end on its own before it is stopped. */
+  readonly stopGrace?: Duration.Input
 }
 
-export type WorkerCommandOf = (folder: string) => WorkerCommand
+export type WorkerCommandOf = (worker: MangaWorker) => WorkerCommand
 
 /** A started worker: JSON lines from it, a way to send it lines, and its error output once it has stopped. */
 export interface WorkerConnection {
@@ -38,11 +48,13 @@ export interface WorkerConnection {
   readonly send: (line: string) => Effect.Effect<void>
   readonly output: Effect.Effect<string>
   readonly pid: number | undefined
+  /** Whether to ask the worker to warm up once it is ready. */
+  readonly warm: boolean
 }
 
-/** Starts a worker for a plugin folder. Closing the scope stops it. */
+/** Starts a worker. Closing the scope stops it. */
 export type WorkerLauncher = (
-  folder: string,
+  worker: MangaWorker,
 ) => Effect.Effect<WorkerConnection, MangaError, Scope.Scope>
 
 export interface RunOptions {
@@ -168,6 +180,10 @@ export const WorkerLine = Schema.Union([
     id: Schema.Int,
     message: Schema.String,
   }),
+  Schema.Struct({ event: Schema.Literal('warm-progress'), done: Schema.Int, total: Schema.Int }),
+  Schema.Struct({ event: Schema.Literal('warm-done'), seconds: Schema.Finite }),
+  Schema.Struct({ event: Schema.Literal('warm-skipped') }),
+  Schema.Struct({ event: Schema.Literal('warm-failed'), message: Schema.String }),
 ])
 
 export type WorkerLine = typeof WorkerLine.Type
@@ -189,6 +205,10 @@ export const WorkerMessage = Schema.Union([
   Schema.Struct({ type: Schema.Literal('translated'), id: Schema.Int, error: Schema.String }),
   Schema.Struct({ type: Schema.Literal('cancel'), run: Schema.String }),
   Schema.Struct({ type: Schema.Literal('editor'), id: Schema.Int, ...EditorFields }),
+  Schema.Struct({
+    type: Schema.Literal('warm'),
+    options: Schema.Record(Schema.String, OptionValue),
+  }),
 ])
 
 type WorkerMessage = typeof WorkerMessage.Type
@@ -205,14 +225,20 @@ interface ActiveRun {
 }
 
 interface Worker {
-  readonly folder: string
+  readonly key: string
   readonly scope: Scope.Closeable
   readonly send: (message: WorkerMessage) => Effect.Effect<void>
   readonly runs: Ref.Ref<Option.Option<ActiveRun>>
   readonly editors: Ref.Ref<ReadonlyMap<number, Deferred.Deferred<unknown, MangaError>>>
+  readonly warmed: Deferred.Deferred<void>
 }
 
 const failed = (message: string) => new MangaError({ reason: 'failed', message })
+
+export interface RuntimeOptions {
+  /** How long an unused worker stays up. */
+  readonly idle: Duration.Input
+}
 
 const lastLines = (text: string) => text.trim().split('\n').slice(-3).join(' ').trim()
 
@@ -220,15 +246,17 @@ export class MangaRuntime extends Context.Service<
   MangaRuntime,
   {
     readonly state: Stream.Stream<MangaRuntimeState>
-    readonly run: (folder: string, request: RunRequest) => Effect.Effect<RunHandle, MangaError>
-    readonly editor: (folder: string, request: EditorRequest) => Effect.Effect<unknown, MangaError>
+    readonly run: (worker: MangaWorker, request: RunRequest) => Effect.Effect<RunHandle, MangaError>
+    readonly editor: (
+      worker: MangaWorker,
+      request: EditorRequest,
+    ) => Effect.Effect<unknown, MangaError>
+    /** Starts the worker so it prepares for the graphics card before the first run needs it. */
+    readonly warm: (worker: MangaWorker) => Effect.Effect<void, MangaError>
     readonly stop: Effect.Effect<void>
   }
 >()('wenbu/core/manga/MangaRuntime') {
-  static readonly layerWith = (
-    launch: WorkerLauncher,
-    options: { readonly idle: Duration.Input },
-  ) =>
+  static readonly layerWith = (launch: WorkerLauncher, options: RuntimeOptions) =>
     Layer.effect(
       MangaRuntime,
       Effect.gen(function* () {
@@ -258,7 +286,11 @@ export class MangaRuntime extends Context.Service<
         const scheduleIdle = Effect.gen(function* () {
           yield* cancelIdle
 
-          const timer = yield* Effect.sleep(options.idle).pipe(
+          const worker = yield* Ref.get(current)
+
+          const warmed = Option.isSome(worker) ? Deferred.await(worker.value.warmed) : Effect.void
+
+          const timer = yield* Effect.andThen(warmed, Effect.sleep(options.idle)).pipe(
             Effect.andThen(stopWorker),
             Effect.forkIn(layerScope),
           )
@@ -273,6 +305,10 @@ export class MangaRuntime extends Context.Service<
               error: () => Option.none(),
               'editor-done': () => Option.none(),
               'editor-failed': () => Option.none(),
+              'warm-progress': () => Option.none(),
+              'warm-done': () => Option.none(),
+              'warm-skipped': () => Option.none(),
+              'warm-failed': () => Option.none(),
               'loading-models': () => Option.some(RunEvent.LoadingModels()),
               'models-loaded': ({ device }) => Option.some(RunEvent.ModelsLoaded({ device })),
               'page-started': ({ page }) => Option.some(RunEvent.PageStarted({ page })),
@@ -288,18 +324,19 @@ export class MangaRuntime extends Context.Service<
             }),
           )
 
-        const startWorker = Effect.fnUntraced(function* (folder: string) {
+        const startWorker = Effect.fnUntraced(function* (spec: MangaWorker) {
           yield* setState({ status: 'starting' })
 
           const scope = yield* Scope.make()
           const ready = yield* Deferred.make<void, MangaError>()
+          const warmed = yield* Deferred.make<void>()
           const runs = yield* Ref.make<Option.Option<ActiveRun>>(Option.none())
 
           const editors = yield* Ref.make<
             ReadonlyMap<number, Deferred.Deferred<unknown, MangaError>>
           >(new Map())
 
-          const connection = yield* launch(folder).pipe(
+          const connection = yield* launch(spec).pipe(
             Scope.provide(scope),
             Effect.tapError(() => Scope.close(scope, Exit.void)),
           )
@@ -335,12 +372,51 @@ export class MangaRuntime extends Context.Service<
                 return
               }
 
+              if (line.event === 'warm-progress') {
+                return yield* SubscriptionRef.update(state, (now) => ({
+                  ...now,
+                  warming: { done: line.done, total: line.total },
+                }))
+              }
+
+              if (
+                line.event === 'warm-done' ||
+                line.event === 'warm-skipped' ||
+                line.event === 'warm-failed'
+              ) {
+                yield* SubscriptionRef.update(state, (now) => Struct.omit(now, ['warming']))
+                yield* Deferred.succeed(warmed, undefined)
+              }
+
+              if (line.event === 'warm-done') {
+                return yield* Effect.logInfo('Manga engine warmed up').pipe(
+                  Effect.annotateLogs({ seconds: line.seconds }),
+                )
+              }
+
+              if (line.event === 'warm-failed') {
+                return yield* Effect.logWarning('Manga engine could not warm up').pipe(
+                  Effect.annotateLogs({ detail: line.message }),
+                )
+              }
+
+              if (line.event === 'warm-skipped') {
+                return
+              }
+
               if (line.event === 'loading-models') {
-                yield* setState({ status: 'loading-models' })
+                yield* SubscriptionRef.update(state, (now) => ({
+                  ...now,
+                  status: 'loading-models' as const,
+                }))
               }
 
               if (line.event === 'models-loaded') {
-                yield* setState({ status: 'busy', device: line.device })
+                yield* SubscriptionRef.update(state, (now) => ({
+                  ...now,
+                  status: 'busy' as const,
+                  device: line.device,
+                }))
 
                 yield* Effect.logInfo('Manga models loaded').pipe(
                   Effect.annotateLogs({ device: line.device }),
@@ -372,6 +448,7 @@ export class MangaRuntime extends Context.Service<
               tail === '' ? 'The manga worker stopped.' : `The manga worker stopped: ${tail}`
 
             yield* Deferred.fail(ready, failed(message))
+            yield* Deferred.succeed(warmed, undefined)
 
             for (const waiting of (yield* Ref.getAndSet(editors, new Map())).values()) {
               yield* Deferred.fail(waiting, failed(message))
@@ -414,30 +491,38 @@ export class MangaRuntime extends Context.Service<
           )
 
           const worker: Worker = {
-            folder,
+            key: workerKey(spec),
             scope,
             runs,
             editors,
+            warmed,
             send: (message) =>
               encodeMessage(message).pipe(Effect.orDie, Effect.flatMap(connection.send)),
           }
 
           yield* Ref.set(current, Option.some(worker))
+
           yield* setState({ status: 'ready' })
+
+          if (connection.warm) {
+            yield* worker.send({ type: 'warm', options: {} })
+          } else {
+            yield* Deferred.succeed(warmed, undefined)
+          }
 
           return worker
         })
 
-        const workerFor = Effect.fnUntraced(function* (folder: string) {
+        const workerFor = Effect.fnUntraced(function* (spec: MangaWorker) {
           const existing = yield* Ref.get(current)
 
-          if (Option.isSome(existing) && existing.value.folder === folder) {
+          if (Option.isSome(existing) && existing.value.key === workerKey(spec)) {
             return existing.value
           }
 
           yield* stopWorker
 
-          return yield* startWorker(folder)
+          return yield* startWorker(spec)
         })
 
         const settle = Effect.gen(function* () {
@@ -447,7 +532,10 @@ export class MangaRuntime extends Context.Service<
           }
         })
 
-        const run = Effect.fn('MangaRuntime.run')(function* (folder: string, request: RunRequest) {
+        const run = Effect.fn('MangaRuntime.run')(function* (
+          spec: MangaWorker,
+          request: RunRequest,
+        ) {
           const running = yield* Effect.flatMap(Ref.get(current), (worker) =>
             Option.isSome(worker) ? Ref.get(worker.value.runs) : Effect.succeedNone,
           )
@@ -462,7 +550,7 @@ export class MangaRuntime extends Context.Service<
           yield* turn.take(1)
           yield* cancelIdle
 
-          const worker = yield* workerFor(folder).pipe(Effect.onError(() => turn.release(1)))
+          const worker = yield* workerFor(spec).pipe(Effect.onError(() => turn.release(1)))
 
           const id = `run-${yield* Ref.updateAndGet(runCount, (count) => count + 1)}`
           const events = yield* Queue.unbounded<RunEvent, Cause.Done>()
@@ -488,14 +576,14 @@ export class MangaRuntime extends Context.Service<
         })
 
         const editor = Effect.fn('MangaRuntime.editor')(function* (
-          folder: string,
+          spec: MangaWorker,
           request: EditorRequest,
         ) {
           return yield* turn.withPermits(1)(
             Effect.gen(function* () {
               yield* cancelIdle
 
-              const worker = yield* workerFor(folder)
+              const worker = yield* workerFor(spec)
               const id = yield* Ref.updateAndGet(editorCount, (count) => count + 1)
               const done = yield* Deferred.make<unknown, MangaError>()
 
@@ -518,21 +606,24 @@ export class MangaRuntime extends Context.Service<
           )
         })
 
+        const warm = Effect.fn('MangaRuntime.warm')(function* (spec: MangaWorker) {
+          yield* turn.withPermits(1)(Effect.andThen(cancelIdle, workerFor(spec)))
+          yield* settle
+        })
+
         yield* Effect.addFinalizer(() => Effect.andThen(cancelIdle, stopWorker))
 
         return MangaRuntime.of({
           state: SubscriptionRef.changes(state),
           run,
           editor,
+          warm,
           stop: Effect.andThen(cancelIdle, stopWorker),
         })
       }),
     )
 
-  static readonly layer = (
-    commandOf: WorkerCommandOf,
-    options: { readonly idle: Duration.Input },
-  ) =>
+  static readonly layer = (commandOf: WorkerCommandOf, options: RuntimeOptions) =>
     Layer.unwrap(
       Effect.gen(function* () {
         const spawner = yield* ChildProcessSpawner.ChildProcessSpawner
@@ -544,16 +635,19 @@ export class MangaRuntime extends Context.Service<
   static readonly live = Layer.unwrap(
     Effect.gen(function* () {
       const resources = yield* Config.String('WENBU_RESOURCES_DIR')
-      const engine = yield* Config.String('WENBU_MANGA_ENGINE').pipe(Config.withDefault('python'))
+      const dataDir = yield* Config.String('WENBU_DATA_DIR')
       const path = yield* Path.Path
 
-      if (engine === 'native') {
-        return MangaRuntime.layerWith(engineWorker, { idle: '10 minutes' })
-      }
-
-      return MangaRuntime.layer((folder) => workerCommand(resources, folder, path), {
-        idle: '10 minutes',
-      })
+      return MangaRuntime.layer(
+        (worker) =>
+          worker.engine === 'manga-engine'
+            ? engineCommand(
+                { resources, dataDir, models: worker.folder, nvidia: worker.nvidia },
+                path,
+              )
+            : workerCommand(resources, worker.folder, path),
+        { idle: '10 minutes' },
+      )
     }),
   )
 }
@@ -564,11 +658,11 @@ export const childWorker =
     spawner: ChildProcessSpawner.ChildProcessSpawner['Service'],
     commandOf: WorkerCommandOf,
   ): WorkerLauncher =>
-  (folder) =>
+  (worker) =>
     Effect.gen(function* () {
       const input = yield* Queue.unbounded<string, Cause.Done>()
       const stderr = yield* Ref.make('')
-      const { command, args, env } = commandOf(folder)
+      const { command, args, env, warm, stopGrace } = commandOf(worker)
 
       const handle = yield* spawner
         .spawn(
@@ -598,7 +692,7 @@ export const childWorker =
       yield* Effect.addFinalizer(() =>
         Queue.end(input).pipe(
           Effect.andThen(handle.exitCode),
-          Effect.timeout('5 seconds'),
+          Effect.timeout(stopGrace ?? '5 seconds'),
           Effect.ignore,
         ),
       )
@@ -612,8 +706,41 @@ export const childWorker =
         send: (line) => Queue.offer(input, `${line}\n`).pipe(Effect.asVoid),
         output: Ref.get(stderr),
         pid: handle.pid,
+        warm: warm === true,
       } satisfies WorkerConnection
     })
+
+export interface EngineFolders {
+  readonly resources: string
+  readonly dataDir: string
+  /** The folder holding the engine's `models` folder. */
+  readonly models: string
+  /** The NVIDIA TensorRT-RTX pack, when it is installed. */
+  readonly nvidia: Option.Option<string>
+}
+
+/** The C++ engine ships with Wenbu, beside its other native helpers. */
+export const engineExecutable = (resources: string, path: Path.Path) =>
+  path.join(resources, 'native', `${process.platform}-${process.arch}`, 'wenbu-manga-engine.exe')
+
+/**
+ * The C++ engine, which speaks the worker protocol over stdio. It warms up once it is ready, and gets
+ * two minutes to close, since saving TensorRT-RTX's compiled kernels takes up to half a minute.
+ */
+export const engineCommand = (folders: EngineFolders, path: Path.Path): WorkerCommand => ({
+  command: engineExecutable(folders.resources, path),
+  args: [],
+  warm: true,
+  stopGrace: '2 minutes',
+  env: {
+    WENBU_MANGA_ENGINE_DIR: folders.models,
+    WENBU_MANGA_CACHE: path.join(folders.dataDir, 'manga-engine'),
+    ...Option.match(folders.nvidia, {
+      onNone: () => ({}),
+      onSome: (pack) => ({ WENBU_NVIDIA_PACK: pack }),
+    }),
+  },
+})
 
 export const workerCommand = (
   resources: string,

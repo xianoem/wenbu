@@ -50,4 +50,19 @@ describe('download', () => {
       expect(progress.at(-1)).toBe(bytes.length)
     }).pipe(Effect.scoped, Effect.provide(NodeServices.layer)),
   )
+
+  it.effect('makes the folder it writes into', () =>
+    Effect.gen(function* () {
+      const fs = yield* FileSystem.FileSystem
+      const path = yield* Path.Path
+      const bytes = new Uint8Array([1, 2, 3])
+      const target = path.join(yield* fs.makeTempDirectoryScoped(), 'models', 'detect.onnx')
+
+      yield* download('https://example.test/detect.onnx', target, () => Effect.void).pipe(
+        Effect.provide(serving(bytes)),
+      )
+
+      expect([...(yield* fs.readFile(target))]).toEqual([...bytes])
+    }).pipe(Effect.scoped, Effect.provide(NodeServices.layer)),
+  )
 })

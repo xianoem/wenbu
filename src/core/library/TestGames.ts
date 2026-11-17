@@ -55,6 +55,8 @@ export const TestLauncher = GameLauncher.layer.pipe(
         cancel: () => Effect.void,
         remove: () => Effect.void,
         test: () => Effect.void,
+        enable: () => Effect.void,
+        mangaEngine: Effect.succeed(Option.none()),
       }),
       Layer.succeed(LunaHookHost)({
         start: () => Effect.die('LunaHook is not installed in tests.'),

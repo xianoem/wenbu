@@ -4,7 +4,9 @@ import { describe, expect, it } from '@effect/vitest'
 import {
   ConfigProvider,
   Context,
+  Deferred,
   Effect,
+  Fiber,
   FileSystem,
   Layer,
   Option,
@@ -39,6 +41,7 @@ const installedPlugin: Plugin = {
   sourceUrl: '',
   platforms: ['win32'],
   supported: true,
+  enabled: true,
   installed: {
     version: '1',
     sizeBytes: 1,
@@ -50,7 +53,13 @@ const installedPlugin: Plugin = {
 type Reply = (request: CompletionRequest) => string
 
 const setup = Effect.fn(function* (
-  options: { reply?: Reply; installed?: boolean; freeBytes?: number } = {},
+  options: {
+    reply?: Reply
+    installed?: boolean
+    freeBytes?: number
+    /** Makes the worker warm up and hold the warm-up until this file exists. */
+    warmUntil?: string
+  } = {},
 ) {
   const fs = yield* FileSystem.FileSystem
   const path = yield* Path.Path
@@ -90,13 +99,34 @@ const setup = Effect.fn(function* (
     cancel: () => Effect.void,
     remove: () => Effect.void,
     test: () => Effect.void,
+    enable: () => Effect.void,
+    mangaEngine: Effect.succeed(
+      installed
+        ? Option.some({
+            engine: 'manga-image-translator' as const,
+            folder: path.join(root, 'plugin'),
+            nvidia: Option.none(),
+          })
+        : Option.none(),
+    ),
   })
 
+  const warmEnv =
+    options.warmUntil === undefined
+      ? {}
+      : {
+          FAKE_WARM_FILE: path.join(root, 'warm.json'),
+          FAKE_WARM_RELEASE: path.join(root, options.warmUntil),
+        }
+
   const runtime = MangaRuntime.layer(
-    () => ({ command: process.execPath, args: [fakeWorker], env: {} }),
-    {
-      idle: '1 minute',
-    },
+    () => ({
+      command: process.execPath,
+      args: [fakeWorker],
+      env: warmEnv,
+      warm: options.warmUntil !== undefined,
+    }),
+    { idle: '1 minute' },
   )
 
   const layer = MangaRpcLive.pipe(
@@ -234,6 +264,44 @@ describe('Manga', () => {
       expect(yield* Effect.flip(client.startMangaRun({ folder }))).toMatchObject({
         reason: 'plugin-missing',
       })
+    }),
+  )
+
+  test(
+    'shows the engine preparing for the graphics card while a run goes on',
+    Effect.gen(function* () {
+      const fs = yield* FileSystem.FileSystem
+      const path = yield* Path.Path
+      const { client, folder, root, settle, withPreset } = yield* setup({ warmUntil: 'release' })
+
+      yield* withPreset()
+
+      const runId = yield* client.startMangaRun({ folder })
+
+      const warming = yield* client.watchMangaRuntime().pipe(
+        Stream.filter((state) => state.warming !== undefined),
+        Stream.runHead,
+      )
+
+      expect(Option.map(warming, (state) => state.warming)).toEqual(
+        Option.some({ done: 1, total: 3 }),
+      )
+
+      yield* settle(runId)
+
+      const listening = yield* Deferred.make<void>()
+
+      const next = yield* client.watchMangaRuntime().pipe(
+        Stream.tap(() => Deferred.succeed(listening, undefined)),
+        Stream.filter((state) => state.warming?.done === 2),
+        Stream.runHead,
+        Effect.forkChild,
+      )
+
+      yield* Deferred.await(listening)
+      yield* fs.writeFileString(path.join(root, 'release'), '')
+
+      expect(Option.isSome(yield* Fiber.join(next))).toBe(true)
     }),
   )
 

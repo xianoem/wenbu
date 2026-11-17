@@ -161,6 +161,8 @@ const makeFakes = Effect.gen(function* () {
     cancel: () => Effect.void,
     remove: () => Effect.void,
     test: () => Effect.void,
+    enable: () => Effect.void,
+    mangaEngine: Effect.succeed(Option.none()),
   })
 
   return {

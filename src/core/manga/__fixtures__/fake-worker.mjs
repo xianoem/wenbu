@@ -1,8 +1,10 @@
 // Speaks the manga worker protocol without Python. Each page asks for one translation; a page
 // whose translation fails is reported failed. `crash` in the options makes the worker die.
 // Editor operations answer at once: a scan finds two lines, clean and render write their output,
-// breaks offers one layout, and a source with "broken" in its name fails.
-import { mkdirSync, writeFileSync } from 'node:fs'
+// breaks offers one layout, and a source with "broken" in its name fails. A warm message is written to
+// FAKE_WARM_FILE and answered as done; with FAKE_WARM_RELEASE it reports one of three shapes done and
+// reports the second and finishes only once that file exists.
+import { existsSync, mkdirSync, writeFileSync } from 'node:fs'
 import { dirname } from 'node:path'
 import { createInterface } from 'node:readline'
 
@@ -144,6 +146,26 @@ for await (const line of createInterface({ input: process.stdin })) {
     waiting.delete(message.id)
   } else if (message.type === 'editor') {
     editor(message)
+  } else if (message.type === 'warm') {
+    writeFileSync(process.env.FAKE_WARM_FILE ?? 'warm.json', JSON.stringify(message))
+
+    const release = process.env.FAKE_WARM_RELEASE
+
+    if (release === undefined) {
+      send({ event: 'warm-done', seconds: 0 })
+    } else {
+      send({ event: 'warm-progress', done: 1, total: 3 })
+
+      const timer = setInterval(() => {
+        if (existsSync(release)) {
+          clearInterval(timer)
+          send({ event: 'warm-progress', done: 2, total: 3 })
+          send({ event: 'warm-done', seconds: 1 })
+        }
+      }, 20)
+
+      timer.unref()
+    }
   } else if (message.type === 'cancel') {
     cancelled = true
 

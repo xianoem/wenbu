@@ -24,7 +24,7 @@ const decodeCleaned = Schema.decodeUnknownEffect(Cleaned)
 const notInstalled = () =>
   new PicturesError({
     reason: 'not-ready',
-    message: 'Install Manga Image Translator on the Plugins page to clean pictures.',
+    message: 'Install a manga engine on the Plugins page to clean pictures.',
   })
 
 export class PictureCleaner extends Context.Service<
@@ -53,28 +53,29 @@ export class PictureCleaner extends Context.Service<
         defaultMangaSettings,
       )
 
-      const pluginFolder = plugins.installedFolder('manga-image-translator')
-
       const clean = Effect.fn('PictureCleaner.clean')(function* (
         source: string,
         output: string,
         boxes: ReadonlyArray<Box>,
       ) {
-        const folder = yield* pluginFolder
+        const engine = yield* plugins.mangaEngine
 
-        if (Option.isNone(folder)) {
+        if (Option.isNone(engine)) {
           return yield* notInstalled()
         }
 
         const settings = yield* Effect.orDie(mangaSettings.get(mangaSettingsKey))
 
-        const options = yield* workerOptions(settings, folder.value, { resources, dataDir }).pipe(
-          Effect.provideContext(files),
-          Effect.orDie,
-        )
+        const screenAi = yield* plugins.installedFolder('screen-ai')
+
+        const options = yield* workerOptions(settings, engine.value.folder, {
+          resources,
+          dataDir,
+          screenAi,
+        }).pipe(Effect.provideContext(files), Effect.orDie)
 
         const result = yield* runtime
-          .editor(folder.value, {
+          .editor(engine.value, {
             op: 'picture',
             options: { ...options, output_format: 'png' },
             source,
@@ -92,7 +93,7 @@ export class PictureCleaner extends Context.Service<
             () =>
               new PicturesError({
                 reason: 'failed',
-                message: 'Manga Image Translator answered with something Wenbu could not read.',
+                message: 'The manga engine answered with something Wenbu could not read.',
               }),
           ),
         )
@@ -104,7 +105,7 @@ export class PictureCleaner extends Context.Service<
       })
 
       return PictureCleaner.of({
-        ready: Effect.map(pluginFolder, (folder) => Option.isSome(folder)),
+        ready: Effect.map(plugins.mangaEngine, (engine) => Option.isSome(engine)),
         clean,
       })
     }),

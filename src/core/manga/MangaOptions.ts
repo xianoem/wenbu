@@ -5,6 +5,8 @@ import { readManifest } from '../plugins/definitions/MangaImageTranslator'
 export interface MangaFolders {
   readonly resources: string
   readonly dataDir: string
+  /** The Screen AI plugin's folder; the native engine reads runaway text blocks again with it. */
+  readonly screenAi: Option.Option<string>
 }
 
 const fontOptions = (settings: MangaSettings, folders: MangaFolders, path: Path.Path) =>
@@ -32,6 +34,10 @@ export const workerOptions = Effect.fn('MangaOptions.workerOptions')(function* (
   return {
     model_dir: path.join(plugin, 'models'),
     ...fontOptions(settings, folders, path),
+    ...Option.match(folders.screenAi, {
+      onNone: () => ({}),
+      onSome: (folder) => ({ screen_ai: folder }),
+    }),
     use_gpu: settings.useGpu && gpu,
     target_language: settings.targetLanguage,
     detection_size: settings.detectionSize,

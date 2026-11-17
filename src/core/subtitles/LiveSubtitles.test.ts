@@ -73,6 +73,8 @@ const setup = Effect.fn(function* (
     cancel: () => Effect.void,
     remove: () => Effect.void,
     test: () => Effect.void,
+    enable: () => Effect.void,
+    mangaEngine: Effect.succeed(Option.none()),
   })
 
   const layer = SubtitlesRpcLive.pipe(

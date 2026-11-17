@@ -12,7 +12,20 @@ const helpers = [
   ...(windows
     ? [
         { name: 'luna-hook', outputs: ['wenbu-luna-hook.exe'] },
-        { name: 'manga-cv', outputs: ['wenbu-manga-cv.exe'], licenses: true },
+        {
+          name: 'manga-engine',
+          outputs: [
+            'wenbu-manga-engine.exe',
+            'wenbu-letter.dll',
+            'onnxruntime.dll',
+            'onnxruntime_providers_shared.dll',
+            'DirectML.dll',
+            'msvcp140.dll',
+            'vcruntime140.dll',
+            'vcruntime140_1.dll',
+          ],
+          licenses: true,
+        },
         { name: 'speech', outputs: ['wenbu-speech.exe'], vulkan: true },
         {
           name: 'rgss-bridge',

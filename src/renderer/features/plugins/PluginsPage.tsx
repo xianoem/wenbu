@@ -9,6 +9,7 @@ import {
   CircleNotchIcon,
   DownloadSimpleIcon,
   type Icon,
+  LightningIcon,
   PushPinIcon,
   SubtitlesIcon,
   XCircleIcon,
@@ -16,22 +17,31 @@ import {
 import { cn } from 'cn'
 import { Schema } from 'effect'
 import { AsyncResult } from 'effect/reactivity'
-import { useState } from 'react'
-import type { InstallStep, InstallStepStatus, Plugin } from '#contract/Plugins'
+import { type ReactNode, useState } from 'react'
+import type { MangaRuntimeState } from '#contract/Manga'
+import {
+  type InstallStep,
+  type InstallStepStatus,
+  mangaEngineIds,
+  type Plugin,
+} from '#contract/Plugins'
 import { SpeechModelId } from '#contract/Subtitles'
 import { formatBytes, formatDay, formatMoment } from '#lib/format'
 import { Button } from '#ui/button'
+import { Switch } from '#ui/switch'
 import { Tooltip, TooltipContent, TooltipTrigger } from '#ui/tooltip'
 import { Trace, TraceDescription, TraceIcon, TraceLine, TraceTitle } from '#ui/trace'
 import {
   cancelPluginInstallAtom,
   checkPluginUpdatesAtom,
+  enablePluginAtom,
   installPluginAtom,
   pluginsAtom,
   removePluginAtom,
   testPluginAtom,
 } from './plugins'
 import { pluginMarks } from './pluginMarks'
+import { mangaRuntimeAtom } from '../manga/manga'
 import { NotEnoughSpaceNotice } from '../storage/NotEnoughSpaceNotice'
 import { subtitleSettingsAtom } from '../subtitles/subtitles'
 
@@ -114,6 +124,8 @@ const sizeLine = (plugin: Plugin) => {
     : `${formatBytes(plugin.latest.downloadBytes)} download`
 }
 
+const isUsable = (plugin: Plugin) => plugin.installed?.test.passed === true
+
 const progressText = (step: InstallStep) => {
   if (step.progress === undefined || step.status !== 'running') {
     return step.detail
@@ -133,6 +145,17 @@ function StatusPill({ status }: { readonly status: Status }) {
       <span aria-hidden className="size-1.5 rounded-full bg-current" />
       {statuses[status].label}
     </span>
+  )
+}
+
+function ProgressBar({ done, total }: { readonly done: number; readonly total: number }) {
+  return (
+    <div className="h-1 overflow-hidden rounded-full bg-muted">
+      <div
+        className="h-full rounded-full bg-primary transition-[width]"
+        style={{ width: `${Math.min(100, (done / Math.max(1, total)) * 100)}%` }}
+      />
+    </div>
   )
 }
 
@@ -185,14 +208,7 @@ function InstallTrace({ plugin }: { readonly plugin: Plugin }) {
         </Trace>
       )}
       {running?.progress === undefined ? null : (
-        <div className="h-1 overflow-hidden rounded-full bg-muted">
-          <div
-            className="h-full rounded-full bg-primary transition-[width]"
-            style={{
-              width: `${Math.min(100, (running.progress.done / Math.max(1, running.progress.total)) * 100)}%`,
-            }}
-          />
-        </div>
+        <ProgressBar done={running.progress.done} total={running.progress.total} />
       )}
       {install.space === undefined ? null : <NotEnoughSpaceNotice space={install.space} />}
       {install.error === undefined || install.space !== undefined ? null : (
@@ -305,7 +321,16 @@ function VersionCell({ plugin }: { readonly plugin: Plugin }) {
   )
 }
 
-function PluginRow({ plugin }: { readonly plugin: Plugin }) {
+function PluginRow({
+  plugin,
+  state,
+  children,
+}: {
+  readonly plugin: Plugin
+  /** Shown instead of the status pill. */
+  readonly state?: ReactNode
+  readonly children?: ReactNode
+}) {
   const status = statusOf(plugin)
   const { Icon, className } = pluginMarks[plugin.id]
 
@@ -328,15 +353,154 @@ function PluginRow({ plugin }: { readonly plugin: Plugin }) {
           </span>
         </span>
         <VersionCell plugin={plugin} />
-        <StatusPill status={status} />
+        {state ?? <StatusPill status={status} />}
         <span className="justify-self-end">
           <PluginAction plugin={plugin} status={status} />
         </span>
       </div>
       <div className="ml-[58px]">
         <InstallTrace plugin={plugin} />
+        {children}
       </div>
     </li>
+  )
+}
+
+const isMangaEngine = Schema.is(Schema.Literals(mangaEngineIds))
+
+function EngineSwitch({
+  plugin,
+  engines,
+}: {
+  readonly plugin: Plugin
+  readonly engines: ReadonlyArray<Plugin>
+}) {
+  const enable = useAtomSet(enablePluginAtom)
+  const on = plugin.enabled === true
+  const other = engines.find((engine) => engine.id !== plugin.id && isUsable(engine))
+
+  const turn = (checked: boolean) => {
+    const id = checked ? plugin.id : other?.id
+
+    if (id !== undefined) {
+      enable({ payload: { id } })
+    }
+  }
+
+  return (
+    <span className="flex items-center gap-2 text-[13px]">
+      <Switch
+        aria-label={`Use ${plugin.name}`}
+        checked={on}
+        disabled={on && other === undefined}
+        onCheckedChange={turn}
+      />
+      <span className={on ? 'text-foreground' : 'text-muted-foreground'}>{on ? 'On' : 'Off'}</span>
+    </span>
+  )
+}
+
+function WarmUp({ warming }: { readonly warming: NonNullable<MangaRuntimeState['warming']> }) {
+  return (
+    <div className="mt-3 flex flex-col gap-2.5 rounded-2xl bg-muted/35 px-3.5 py-3">
+      <span className="flex items-center gap-1.5 text-[13px]">
+        <LightningIcon className="shrink-0 text-warning" />
+        <span className="font-medium">Preparing for your graphics card</span>
+        <span className="text-muted-foreground">
+          · {warming.done} of {warming.total}
+        </span>
+        <span className="ml-auto text-xs text-muted-foreground">
+          Translations can start meanwhile
+        </span>
+      </span>
+      <ProgressBar done={warming.done} total={warming.total} />
+    </div>
+  )
+}
+
+const nvidiaLines = (plugin: Plugin) => {
+  if (plugin.installed !== undefined && isUsable(plugin)) {
+    return {
+      headline: 'in use, about 2× faster',
+      detail: `${plugin.installed.test.message.replace(/\.$/, '')} · ${formatBytes(plugin.installed.sizeBytes)} on disk`,
+    }
+  }
+
+  const download = plugin.latest?.downloadBytes
+
+  const source =
+    download === undefined
+      ? "From NVIDIA's own download"
+      : `${formatBytes(download)} from NVIDIA's own download`
+
+  return {
+    headline: 'optional, about 2× faster on NVIDIA RTX graphics cards',
+    detail: `${source} · ${plugin.license}`,
+  }
+}
+
+function NvidiaPanel({ plugin }: { readonly plugin: Plugin }) {
+  const status = statusOf(plugin)
+  const { Icon, className } = pluginMarks[plugin.id]
+  const { headline, detail } = nvidiaLines(plugin)
+
+  return (
+    <div className="mt-3 rounded-2xl bg-muted/35 px-3.5 py-3">
+      <div className="flex items-center gap-3">
+        <span
+          className={cn(
+            'flex size-8 shrink-0 items-center justify-center rounded-[10px] text-base',
+            className,
+          )}
+        >
+          <Icon />
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="block text-sm">
+            <span className="font-semibold">{plugin.name}</span>
+            <span className="text-muted-foreground"> · {headline}</span>
+          </span>
+          <span className="block truncate text-[12.5px] text-muted-foreground">{detail}</span>
+        </span>
+        <PluginAction plugin={plugin} status={status} />
+      </div>
+      <InstallTrace plugin={plugin} />
+    </div>
+  )
+}
+
+function EngineRow({
+  plugin,
+  engines,
+  nvidia,
+  runtime,
+}: {
+  readonly plugin: Plugin
+  readonly engines: ReadonlyArray<Plugin>
+  readonly nvidia: Plugin | undefined
+  readonly runtime: MangaRuntimeState | undefined
+}) {
+  const usable = isUsable(plugin)
+  const on = engines.find((engine) => engine.enabled === true)
+  const native = usable && plugin.id === 'manga-engine'
+
+  return (
+    <PluginRow
+      plugin={plugin}
+      {...(usable && plugin.install === undefined
+        ? { state: <EngineSwitch plugin={plugin} engines={engines} /> }
+        : {})}
+    >
+      {usable && on !== undefined && on.id !== plugin.id ? (
+        <p className="mt-2 text-[12.5px] text-muted-foreground">
+          Off while {on.name} is on. Only one manga engine runs at a time.
+        </p>
+      ) : null}
+      {native && plugin.enabled === true && runtime?.warming !== undefined ? (
+        <WarmUp warming={runtime.warming} />
+      ) : null}
+      {native && nvidia?.supported === true ? <NvidiaPanel plugin={nvidia} /> : null}
+    </PluginRow>
   )
 }
 
@@ -464,8 +628,12 @@ function SpeechModelsGroup({ plugins }: { readonly plugins: ReadonlyArray<Plugin
 
 export function PluginsPage() {
   const result = useAtomValue(pluginsAtom)
+  const runtimeResult = useAtomValue(mangaRuntimeAtom)
   const check = useAtomSet(checkPluginUpdatesAtom)
   const state = AsyncResult.isSuccess(result) ? result.value : undefined
+  const runtime = AsyncResult.isSuccess(runtimeResult) ? runtimeResult.value : undefined
+  const engines = state?.plugins.filter((plugin) => isMangaEngine(plugin.id)) ?? []
+  const nvidia = state?.plugins.find((plugin) => plugin.id === 'tensorrt-rtx')
 
   return (
     <div className="flex flex-col">
@@ -501,10 +669,20 @@ export function PluginsPage() {
       {state === undefined ? null : (
         <ul className="mt-6 rounded-3xl bg-card p-1.5 shadow-card">
           {state.plugins
-            .filter((plugin) => !isSpeechModel(plugin.id))
-            .map((plugin) => (
-              <PluginRow key={plugin.id} plugin={plugin} />
-            ))}
+            .filter((plugin) => !isSpeechModel(plugin.id) && plugin.id !== 'tensorrt-rtx')
+            .map((plugin) =>
+              isMangaEngine(plugin.id) ? (
+                <EngineRow
+                  key={plugin.id}
+                  plugin={plugin}
+                  engines={engines}
+                  nvidia={nvidia}
+                  runtime={runtime}
+                />
+              ) : (
+                <PluginRow key={plugin.id} plugin={plugin} />
+              ),
+            )}
           <SpeechModelsGroup plugins={state.plugins.filter((plugin) => isSpeechModel(plugin.id))} />
         </ul>
       )}

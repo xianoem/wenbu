@@ -417,39 +417,39 @@ export const MangaEditorRpcLive = MangaEditorRpc.toLayer(
         }),
       )
 
-    const pluginFolder = Effect.flatMap(
-      plugins.installedFolder('manga-image-translator'),
-      (folder) =>
-        Option.match(folder, {
-          onNone: () =>
-            Effect.fail(
-              new MangaEditorError({
-                reason: 'not-ready',
-                message: 'Install manga-image-translator on the Plugins page first.',
-              }),
-            ),
-          onSome: Effect.succeed,
-        }),
+    const pluginFolder = Effect.flatMap(plugins.mangaEngine, (engine) =>
+      Option.match(engine, {
+        onNone: () =>
+          Effect.fail(
+            new MangaEditorError({
+              reason: 'not-ready',
+              message: 'Install a manga engine on the Plugins page first.',
+            }),
+          ),
+        onSome: Effect.succeed,
+      }),
     )
 
     const optionsFor = (plugin: string, settings: MangaEditorSettings) =>
-      Effect.flatMap(getMangaSettings, (manga) =>
-        workerOptions(
-          {
-            ...manga,
-            targetLanguage: settings.targetLanguage,
-            font: settings.font,
-            minFontSize: settings.minFontSize,
-            maxFontSize: settings.maxFontSize,
-            textBorder: settings.outline,
-            borderColor: settings.outlineColor,
-            uppercase: settings.uppercase,
-          },
-          plugin,
-          { resources, dataDir },
-        ).pipe(
-          Effect.provideContext(files),
-          Effect.map((options) => ({ ...options, output_format: 'png' })),
+      Effect.all([getMangaSettings, plugins.installedFolder('screen-ai')]).pipe(
+        Effect.flatMap(([manga, screenAi]) =>
+          workerOptions(
+            {
+              ...manga,
+              targetLanguage: settings.targetLanguage,
+              font: settings.font,
+              minFontSize: settings.minFontSize,
+              maxFontSize: settings.maxFontSize,
+              textBorder: settings.outline,
+              borderColor: settings.outlineColor,
+              uppercase: settings.uppercase,
+            },
+            plugin,
+            { resources, dataDir, screenAi },
+          ).pipe(
+            Effect.provideContext(files),
+            Effect.map((options) => ({ ...options, output_format: 'png' })),
+          ),
         ),
       )
 
@@ -681,7 +681,7 @@ export const MangaEditorRpcLive = MangaEditorRpc.toLayer(
       const paths = pathsOf(gallery, page)
 
       const options = {
-        ...(yield* optionsFor(plugin, settings)),
+        ...(yield* optionsFor(plugin.folder, settings)),
         output_format: formatOf(paths.rendered),
       }
 
@@ -799,7 +799,7 @@ export const MangaEditorRpcLive = MangaEditorRpc.toLayer(
     const scanPage = Effect.fnUntraced(function* (gallery: Gallery, page: MangaPage) {
       const settings = yield* settingsOf(gallery.folder)
       const plugin = yield* pluginFolder
-      const options = yield* optionsFor(plugin, settings)
+      const options = yield* optionsFor(plugin.folder, settings)
       const paths = pathsOf(gallery, page)
 
       const result = yield* runtime
@@ -890,7 +890,7 @@ export const MangaEditorRpcLive = MangaEditorRpc.toLayer(
     ) {
       const page = yield* pageOf(gallery, name)
       const plugin = yield* pluginFolder
-      const options = yield* optionsFor(plugin, yield* settingsOf(gallery.folder))
+      const options = yield* optionsFor(plugin.folder, yield* settingsOf(gallery.folder))
       const paths = pathsOf(gallery, page)
 
       yield* runtime
@@ -1437,7 +1437,7 @@ export const MangaEditorRpcLive = MangaEditorRpc.toLayer(
 
       const settings = yield* settingsOf(gallery.folder)
       const plugin = yield* pluginFolder
-      const options = yield* optionsFor(plugin, settings)
+      const options = yield* optionsFor(plugin.folder, settings)
 
       const reply = yield* runtime
         .editor(plugin, {

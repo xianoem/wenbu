@@ -121,6 +121,14 @@ const setup = Effect.fn(function* (options: { readonly preset?: string } = {}) {
     cancel: () => Effect.void,
     remove: () => Effect.void,
     test: () => Effect.void,
+    enable: () => Effect.void,
+    mangaEngine: Effect.succeed(
+      Option.some({
+        engine: 'manga-image-translator' as const,
+        folder: path.join(root, 'plugin'),
+        nvidia: Option.none(),
+      }),
+    ),
   })
 
   const screenAi = Layer.succeed(ScreenAiOcr)({

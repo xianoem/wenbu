@@ -21,7 +21,7 @@ import {
   MangaError,
   MangaRpc,
   MangaRun,
-  type MangaRuntimeState,
+  MangaRuntimeState,
   MangaSettings,
   type PageStage,
   type RecentPage,
@@ -32,6 +32,7 @@ import { PresetReferences } from '../llm/PresetReferences'
 import { DiskSpace, nextFileBytes } from '../platform/DiskSpace'
 import * as SettingsStore from '../platform/SettingsStore'
 import { Plugins } from '../plugins/Plugins'
+import { warmOnEngineChange } from './EngineWarmup'
 import {
   cleanSource,
   isTranslatable,
@@ -41,7 +42,7 @@ import {
   systemPrompt,
 } from './MangaPrompt'
 import { isValidFolderName, listPages, type MangaPage } from './MangaPages'
-import { MangaRuntime, RunEvent, type RunHandle } from './MangaRuntime'
+import { type MangaWorker, MangaRuntime, RunEvent, type RunHandle } from './MangaRuntime'
 import { workerOptions } from './MangaOptions'
 
 const RunRow = Schema.Struct({ run: Schema.fromJsonString(MangaRun) })
@@ -208,6 +209,8 @@ export const MangaRpcLive = MangaRpc.toLayer(
       defaultMangaSettings,
     )
 
+    yield* Effect.forkScoped(warmOnEngineChange(plugins, runtime))
+
     const active = yield* FiberHandle.make()
     const handle = yield* SubscriptionRef.make<Option.Option<RunHandle>>(Option.none())
 
@@ -264,19 +267,17 @@ export const MangaRpcLive = MangaRpc.toLayer(
         ),
     })
 
-    const pluginFolder = Effect.flatMap(
-      plugins.installedFolder('manga-image-translator'),
-      (folder) =>
-        Option.match(folder, {
-          onNone: () =>
-            Effect.fail(
-              new MangaError({
-                reason: 'plugin-missing',
-                message: 'Install manga-image-translator on the Plugins page first.',
-              }),
-            ),
-          onSome: Effect.succeed,
-        }),
+    const enabledEngine = Effect.flatMap(plugins.mangaEngine, (engine) =>
+      Option.match(engine, {
+        onNone: () =>
+          Effect.fail(
+            new MangaError({
+              reason: 'plugin-missing',
+              message: 'Install a manga engine on the Plugins page first.',
+            }),
+          ),
+        onSome: Effect.succeed,
+      }),
     )
 
     const pagesOf = (folder: string, settings: MangaSettings) =>
@@ -367,12 +368,14 @@ export const MangaRpcLive = MangaRpc.toLayer(
     })
 
     const runOptions = (settings: MangaSettings, folder: string) =>
-      workerOptions(settings, folder, { resources, dataDir }).pipe(Effect.provideContext(files))
+      Effect.flatMap(plugins.installedFolder('screen-ai'), (screenAi) =>
+        workerOptions(settings, folder, { resources, dataDir, screenAi }),
+      ).pipe(Effect.provideContext(files))
 
     const execute = Effect.fnUntraced(function* (
       runId: string,
       settings: MangaSettings,
-      plugin: string,
+      plugin: MangaWorker,
       pages: ReadonlyArray<MangaPage>,
     ) {
       const usage: Usage = { inputTokens: 0, outputTokens: 0, costUsd: undefined }
@@ -430,7 +433,7 @@ export const MangaRpcLive = MangaRpc.toLayer(
       }
 
       const run = yield* runtime.run(plugin, {
-        options: yield* runOptions(settings, plugin),
+        options: yield* runOptions(settings, plugin.folder),
         pages: pages.map((page) => ({ source: page.source, output: page.output })),
       })
 
@@ -444,7 +447,7 @@ export const MangaRpcLive = MangaRpc.toLayer(
             LoadingModels: () => progress('Loading the models'),
             ModelsLoaded: () => progress('Starting'),
             PageStarted: ({ page }) =>
-              disk.ensure(pages[page]?.output ?? plugin, nextFileBytes).pipe(
+              disk.ensure(pages[page]?.output ?? plugin.folder, nextFileBytes).pipe(
                 Effect.catchTag('NotEnoughSpace', (error) => {
                   space = error.shortfall
 
@@ -577,7 +580,7 @@ export const MangaRpcLive = MangaRpc.toLayer(
           ),
         )
 
-      const plugin = yield* pluginFolder
+      const plugin = yield* enabledEngine
       const { outputFolder, pages } = yield* pagesOf(folder, settings)
 
       if (pages.length === 0) {
@@ -707,18 +710,11 @@ export const MangaRpcLive = MangaRpc.toLayer(
 
     const runtimeState = Stream.zipLatest(plugins.state, runtime.state).pipe(
       Stream.map(([pluginState, state]): MangaRuntimeState => {
-        const plugin = pluginState.plugins.find(
-          (candidate) => candidate.id === 'manga-image-translator',
-        )
+        const engineOn = pluginState.plugins.some((plugin) => plugin.enabled === true)
 
-        return plugin?.installed?.test.passed === true ? state : { status: 'not-installed' }
+        return engineOn ? state : { status: 'not-installed' }
       }),
-      Stream.changesWith(
-        (left, right) =>
-          left.status === right.status &&
-          left.device === right.device &&
-          left.message === right.message,
-      ),
+      Stream.changesWith(Schema.toEquivalence(MangaRuntimeState)),
     )
 
     return MangaRpc.of({

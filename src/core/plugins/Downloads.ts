@@ -1,4 +1,4 @@
-import { Effect, FileSystem, Option, type Schema, Stream } from 'effect'
+import { Effect, FileSystem, Option, Path, type Schema, Stream } from 'effect'
 import { Hex } from 'effect/encoding'
 import { HttpClient, HttpClientRequest, HttpClientResponse } from 'effect/http'
 import { PluginError } from '#contract/Plugins'
@@ -42,7 +42,18 @@ export const download = Effect.fn('download')(function* (
 ) {
   const client = (yield* HttpClient.HttpClient).pipe(HttpClient.filterStatusOk)
   const fs = yield* FileSystem.FileSystem
+  const path = yield* Path.Path
   const host = URL.parse(url)?.host ?? url
+
+  yield* fs.makeDirectory(path.dirname(file), { recursive: true }).pipe(
+    Effect.mapError(
+      () =>
+        new PluginError({
+          reason: 'failed',
+          message: `${path.dirname(file)} could not be made.`,
+        }),
+    ),
+  )
 
   const response = yield* client
     .execute(withAgent(HttpClientRequest.get(url)))

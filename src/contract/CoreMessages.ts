@@ -117,27 +117,3 @@ export type UpdateWatch = typeof UpdateWatch.Type
 export const UpdateInstall = Schema.TaggedStruct('UpdateInstall', {})
 
 export type UpdateInstall = typeof UpdateInstall.Type
-
-/** Core asks main to start a manga engine process; main answers with `MangaEngineStarted` and a port to it. */
-export const MangaEngineStart = Schema.TaggedStruct('MangaEngineStart', {
-  id: Schema.Int,
-  folder: Schema.String,
-})
-
-export type MangaEngineStart = typeof MangaEngineStart.Type
-
-export const MangaEngineStarted = Schema.TaggedStruct('MangaEngineStarted', { id: Schema.Int })
-
-export type MangaEngineStarted = typeof MangaEngineStarted.Type
-
-export const MangaEngineStop = Schema.TaggedStruct('MangaEngineStop', { id: Schema.Int })
-
-export type MangaEngineStop = typeof MangaEngineStop.Type
-
-export const MangaEngineExited = Schema.TaggedStruct('MangaEngineExited', {
-  id: Schema.Int,
-  exitCode: Schema.Int,
-  output: Schema.String,
-})
-
-export type MangaEngineExited = typeof MangaEngineExited.Type

@@ -1,0 +1,255 @@
+{
+  "release": "manga-engine-models-1",
+  "files": [
+    {
+      "name": "LICENSE-Apache-2.0.txt",
+      "bytes": 11358,
+      "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30"
+    },
+    {
+      "name": "LICENSE-GPL-3.0.txt",
+      "bytes": 35150,
+      "sha256": "e57f1c320b8cf8798a7d2ff83a6f9e06a33a03585f6e065fea97f1d86db84052"
+    },
+    {
+      "name": "LICENSE-py3langid.txt",
+      "bytes": 1676,
+      "sha256": "1694ffed7731df5c6e3d95ad5aa2398bf64f9377636ead34a23f385dd3598a0c"
+    },
+    {
+      "name": "MODELS.md",
+      "bytes": 1278,
+      "sha256": "1a3480f40284cfe35c3af651b5eacb4d2077a4c652d39e56a75e52aa4e67d73e"
+    },
+    {
+      "name": "detect.onnx",
+      "bytes": 305999059,
+      "sha256": "7856594d9f2344bac96b6a9586c64b9109ed6b22d8ddebec9af757d3a38fb5dd"
+    },
+    {
+      "name": "lama-part0.onnx",
+      "bytes": 27649266,
+      "sha256": "4674dec7baab6016a4568209ee5574c7991b76453ba7b59e1d0aaaaf5f5526b7"
+    },
+    {
+      "name": "lama-part1.onnx",
+      "bytes": 26710976,
+      "sha256": "434cd4e4e4432adba9988db4cf1212f02b49abcdf8bcf1af27d790306638651f"
+    },
+    {
+      "name": "lama-part2.onnx",
+      "bytes": 21391559,
+      "sha256": "ec946b98b62acfbb24e2aa291454fa081837445a210ddbca7d27d452c8332515"
+    },
+    {
+      "name": "lama-part3.onnx",
+      "bytes": 26725920,
+      "sha256": "fa2d69204ed0ec31391f1c94a43661d173289c18e7c0372cc49a2cd05c6d16f5"
+    },
+    {
+      "name": "lama-part4.onnx",
+      "bytes": 21382259,
+      "sha256": "68ef351e813cedf4a762f26f97188a4b562a975d21ec97accd3f9fb1341efed4"
+    },
+    {
+      "name": "lama-part5.onnx",
+      "bytes": 26725384,
+      "sha256": "caa189f9bad91b50baa2150ba699914742cdaae785179b5b0d2fd5705bf99bfc"
+    },
+    {
+      "name": "lama-part6.onnx",
+      "bytes": 26725920,
+      "sha256": "25e53afb75b01d823c16fba2a26a54341dc4c74a2bd6e089187532010faf79d8"
+    },
+    {
+      "name": "lama-part7.onnx",
+      "bytes": 27624530,
+      "sha256": "77810b9d4e3d41dd7a079abfaeeeb8a9f43314ef1d4fba2613559983d21f3175"
+    },
+    {
+      "name": "lama.onnx",
+      "bytes": 204920568,
+      "sha256": "103282ee75a54fbb02cd836efa7a7fa99f0605a2503ddb17f8ec8d9614e49468"
+    },
+    {
+      "name": "lama.parts.json",
+      "bytes": 3074,
+      "sha256": "88d7566f3b8028377f72819429d6c5ac2c7178cf0099d8e89906c10cc1b559c6"
+    },
+    {
+      "name": "langid.bin",
+      "bytes": 7649206,
+      "sha256": "47d0a6d2b4d4b220798616cab205b54435737737a2be845cdb99194a2b075357"
+    },
+    {
+      "name": "reader-chunk-256-b8-part0.onnx",
+      "bytes": 1386475,
+      "sha256": "8c537d20f2677aafb748b33d361f4974a27304e40281ec599be968856f293050"
+    },
+    {
+      "name": "reader-chunk-256-b8-part1.onnx",
+      "bytes": 1295784,
+      "sha256": "43d5b81998de77693cb051f85b0ad095f5e228a29d19e8c3ebfa76c88ab750e9"
+    },
+    {
+      "name": "reader-chunk-256-b8-part2.onnx",
+      "bytes": 1624182,
+      "sha256": "233d40f6a7e659ded6a987dcde50d16308b43d1c453a4c61a0ece884234fe1c4"
+    },
+    {
+      "name": "reader-chunk-256-b8-part3.onnx",
+      "bytes": 1329785,
+      "sha256": "556abdbbb2d4568fa9eeca5dcd6f1e9d4d40f50e9dd30ab21fe09addc4d579c5"
+    },
+    {
+      "name": "reader-chunk-256-b8-part4.onnx",
+      "bytes": 1658585,
+      "sha256": "48e983659502c7234cddde50e9dc4d2e4e8e58fa730a388bd68de0e7529a76f5"
+    },
+    {
+      "name": "reader-chunk-256-b8-part5.onnx",
+      "bytes": 1341454,
+      "sha256": "2e26f2ee5f6a729f87156d015b48cf44212e256757189564dbe58ec70b0cdc13"
+    },
+    {
+      "name": "reader-chunk-256-b8.onnx",
+      "bytes": 8590971,
+      "sha256": "f0aa9fb8b2d86ce59886ce30305842ad31f187586f56c317dd7095ea949fc3d9"
+    },
+    {
+      "name": "reader-chunk-256-b8.parts.json",
+      "bytes": 5103,
+      "sha256": "5640ebb378976396d9464c606f6a7f8a527ec388fef516c2660a00c7268d63fb"
+    },
+    {
+      "name": "reader-chunk-512-b8-part0.onnx",
+      "bytes": 1573484,
+      "sha256": "66d5549f899b6f13cd9bae7e7a4d8c7e1e34438968bd106b9f8f3f44a4364c41"
+    },
+    {
+      "name": "reader-chunk-512-b8-part1.onnx",
+      "bytes": 1296808,
+      "sha256": "33a1bf6364268b67d75673e2ef64453d7537566cdfd0f1fdb87ccf3268dbf548"
+    },
+    {
+      "name": "reader-chunk-512-b8-part2.onnx",
+      "bytes": 1625462,
+      "sha256": "e12a99850bd374346c017bb522fd9d32812b7ff2d56411d94e922e8afa5b6021"
+    },
+    {
+      "name": "reader-chunk-512-b8-part3.onnx",
+      "bytes": 1330809,
+      "sha256": "7ed5efd563111d00f45ac122cbc779539a3b9327da6d2689b1716ba66ffb8f63"
+    },
+    {
+      "name": "reader-chunk-512-b8-part4.onnx",
+      "bytes": 1659867,
+      "sha256": "48d9566c5197755cbd53a1570fc5eb14b060b2b6f78d43af35ff3da4c29f7f6d"
+    },
+    {
+      "name": "reader-chunk-512-b8-part5.onnx",
+      "bytes": 1342478,
+      "sha256": "50f0940bb0fcff91b40289341da681cd1d874a853392caaf6fd8b3c10e8198cf"
+    },
+    {
+      "name": "reader-chunk-512-b8.onnx",
+      "bytes": 8783613,
+      "sha256": "6cb65c1837667b5364f3f171611a9d1ab02762269a9e9348698625ef95955047"
+    },
+    {
+      "name": "reader-chunk-512-b8.parts.json",
+      "bytes": 5103,
+      "sha256": "0db37f424e4530a5ac2e3e23138b0185e3fbc83d8ea3ebfee204fe4f42e1ec3d"
+    },
+    {
+      "name": "reader-cont-256-b8-part0.onnx",
+      "bytes": 1938789,
+      "sha256": "a4fd2f39971e4b26a3758c48b77059d46307dd3ccee0143243832072c8cf589d"
+    },
+    {
+      "name": "reader-cont-256-b8-part1.onnx",
+      "bytes": 1916553,
+      "sha256": "78e63d2387c5293888c0befb52208b80ac1bb418a266c5f56e6f50d563f14d6d"
+    },
+    {
+      "name": "reader-cont-256-b8-part2.onnx",
+      "bytes": 1950235,
+      "sha256": "704725cf87a68948b7c2822c9939772f28929619a5b90aedf44f5fcd3aa272cf"
+    },
+    {
+      "name": "reader-cont-256-b8-part3.onnx",
+      "bytes": 1960875,
+      "sha256": "fbf037bad18f4b641d22a52007f025f0f6de09a4b938395816437792b43e9306"
+    },
+    {
+      "name": "reader-cont-256-b8.onnx",
+      "bytes": 7610896,
+      "sha256": "55a475b2ec59bff791414afca6e8a4437151007abe0b0f3ff88198cc94f317e1"
+    },
+    {
+      "name": "reader-cont-256-b8.parts.json",
+      "bytes": 3999,
+      "sha256": "fa51462ba859a1f3fc0af5043781068c7198706cef1ef0bc32ecaa42a426dc2c"
+    },
+    {
+      "name": "reader-cont-512-b8-part0.onnx",
+      "bytes": 1951077,
+      "sha256": "3281992cf9ab99d857c0537cb91de461b3dc3146b6a59165b409ce1711f33d27"
+    },
+    {
+      "name": "reader-cont-512-b8-part1.onnx",
+      "bytes": 1928841,
+      "sha256": "d29fbb3e36e919c56121c49c75aa6f2b8c3003fb0a59f47fe8555c073bcc7096"
+    },
+    {
+      "name": "reader-cont-512-b8-part2.onnx",
+      "bytes": 1962523,
+      "sha256": "f268916c0a5cc85bdcbc21e6aef428b7cf4718acd260dd5f5063ffd34c8a8c89"
+    },
+    {
+      "name": "reader-cont-512-b8-part3.onnx",
+      "bytes": 1973163,
+      "sha256": "bb7b3bab28f4bb670d95683ab21314e395737593efa6a9748914f544728122c6"
+    },
+    {
+      "name": "reader-cont-512-b8.onnx",
+      "bytes": 7660048,
+      "sha256": "87d1535bc8614920de722181af7c217a6e0bbee8e64a1495e375967f411566e9"
+    },
+    {
+      "name": "reader-cont-512-b8.parts.json",
+      "bytes": 3999,
+      "sha256": "d68390fba98a98e67d10fba08ba7677567b89377870d0cdf461762d2e7485e70"
+    },
+    {
+      "name": "reader-prefill-256-b8.onnx",
+      "bytes": 303495007,
+      "sha256": "d5567c7fc9f1d6103837b2b725cdf0e4d34fc942d3530929f7ab9093936d92cd"
+    },
+    {
+      "name": "reader-prefill-512-b8.onnx",
+      "bytes": 303681503,
+      "sha256": "540ed6a2e4625ed43b72c7b3a6a843bbaf96a00ca6f967c18ec00e39deb644e3"
+    },
+    {
+      "name": "reader-step-256-b8.onnx",
+      "bytes": 124403534,
+      "sha256": "7a95439e4a20141d21224dbc3df462fa695cbc4ce64e14a0b84106ec8ef22434"
+    },
+    {
+      "name": "reader-step-512-b8.onnx",
+      "bytes": 124405582,
+      "sha256": "328f816d6e132a43ff51f05d67e0711d2e0722ac15066549c679530d625c81ed"
+    },
+    {
+      "name": "reader-tokenizer.json",
+      "bytes": 1247253,
+      "sha256": "f8a0a909c628a684fe463094614e236a8b1d3609e7770f77e7beafaf1056bf13"
+    },
+    {
+      "name": "reader.weights",
+      "bytes": 303561216,
+      "sha256": "2ce5122a2aa4dd0be4d962774ab175f568aeba0545e783082f3933c03356b5f9"
+    }
+  ]
+}

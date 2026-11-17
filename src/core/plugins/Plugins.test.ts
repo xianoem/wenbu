@@ -99,6 +99,61 @@ const setup = (
 
 const first = (state: PluginsState) => state.plugins[0]
 
+const installedRecord = (folder: string) => ({
+  version: '1',
+  sizeBytes: 1,
+  installedAt: '2026-11-17T10:00:00Z',
+  test: { passed: true, message: 'Works.', testedAt: '2026-11-17T10:00:00Z' },
+  folder,
+})
+
+const engineDefinition = (id: 'manga-engine' | 'manga-image-translator'): PluginDefinition => ({
+  meta: { ...meta, id, name: id },
+  supported: true,
+  resolve: Effect.succeed({ release: { version: '1' }, steps: [] }),
+  test: () => Effect.succeed('Works.'),
+  release: Effect.void,
+})
+
+/** Both manga engines, with `installed` as their saved installs and `chosen` as the saved choice. */
+const engines = (
+  installed: ReadonlyArray<'manga-engine' | 'manga-image-translator'>,
+  chosen?: string,
+) =>
+  Effect.gen(function* () {
+    const fs = yield* FileSystem.FileSystem
+    const root = yield* fs.makeTempDirectoryScoped()
+    const store = yield* Layer.build(KeyValueStore.layerMemory)
+
+    yield* Context.get(store, KeyValueStore.KeyValueStore).set(
+      'plugins',
+      yield* encodeJson({
+        installed: Object.fromEntries(
+          installed.map((id) => [id, installedRecord(`C:/plugins/${id}`)]),
+        ),
+        latest: {},
+        ...(chosen === undefined ? {} : { mangaEngine: chosen }),
+      }),
+    )
+
+    const layer = Plugins.layer({
+      root,
+      definitions: Effect.succeed([
+        engineDefinition('manga-engine'),
+        engineDefinition('manga-image-translator'),
+      ]),
+    }).pipe(Layer.provide([Layer.succeedContext(store), DiskSpace.fixed(100 * 1024 ** 3)]))
+
+    const plugins = Context.get(yield* Layer.build(layer), Plugins)
+
+    const enabled = Effect.map(
+      plugins.state.pipe(Stream.runHead, Effect.map(Option.getOrThrow)),
+      (state) => Object.fromEntries(state.plugins.map((plugin) => [plugin.id, plugin.enabled])),
+    )
+
+    return { plugins, enabled }
+  })
+
 describe('Plugins', () => {
   it.live('installs into a versioned folder, tests it, and records what it found', () =>
     Effect.gen(function* () {
@@ -244,6 +299,62 @@ describe('Plugins', () => {
 
       expect(first(state)?.installed).toEqual(installed)
       expect(first(state)?.latest).toBeUndefined()
+    }).pipe(Effect.scoped, Effect.provide(NodeServices.layer)),
+  )
+
+  it.live('turns on the only manga engine installed', () =>
+    Effect.gen(function* () {
+      const { plugins, enabled } = yield* engines(['manga-engine'])
+
+      expect(yield* enabled).toEqual({ 'manga-engine': true, 'manga-image-translator': undefined })
+
+      expect(yield* plugins.mangaEngine).toEqual(
+        Option.some({
+          engine: 'manga-engine',
+          folder: 'C:/plugins/manga-engine',
+          nvidia: Option.none(),
+        }),
+      )
+    }).pipe(Effect.scoped, Effect.provide(NodeServices.layer)),
+  )
+
+  it.live('keeps Manga Translator on when both are installed and none was chosen', () =>
+    Effect.gen(function* () {
+      const { enabled } = yield* engines(['manga-engine', 'manga-image-translator'])
+
+      expect(yield* enabled).toEqual({ 'manga-engine': false, 'manga-image-translator': true })
+    }).pipe(Effect.scoped, Effect.provide(NodeServices.layer)),
+  )
+
+  it.live('turns the other manga engine off when one is enabled', () =>
+    Effect.gen(function* () {
+      const { plugins, enabled } = yield* engines(['manga-engine', 'manga-image-translator'])
+
+      yield* plugins.enable('manga-engine')
+
+      expect(yield* enabled).toEqual({ 'manga-engine': true, 'manga-image-translator': false })
+
+      expect(Option.map(yield* plugins.mangaEngine, (engine) => engine.engine)).toEqual(
+        Option.some('manga-engine'),
+      )
+    }).pipe(Effect.scoped, Effect.provide(NodeServices.layer)),
+  )
+
+  it.live('falls back to the other manga engine when the chosen one is gone', () =>
+    Effect.gen(function* () {
+      const { enabled } = yield* engines(['manga-image-translator'], 'manga-engine')
+
+      expect(yield* enabled).toEqual({ 'manga-engine': undefined, 'manga-image-translator': true })
+    }).pipe(Effect.scoped, Effect.provide(NodeServices.layer)),
+  )
+
+  it.live('refuses to enable a manga engine that is not installed', () =>
+    Effect.gen(function* () {
+      const { plugins } = yield* engines(['manga-image-translator'])
+
+      const error = yield* Effect.flip(plugins.enable('manga-engine'))
+
+      expect(error.reason).toBe('unavailable')
     }).pipe(Effect.scoped, Effect.provide(NodeServices.layer)),
   )
 })
