@@ -176,31 +176,7 @@ set(OPENCV_INCLUDES
 # The PNG decoder reads the file itself, to keep palettes, grey depths and alpha apart like Pillow.
 set(PNG_INCLUDES ${OpenCV_SOURCE_DIR}/3rdparty/libpng ${OpenCV_BINARY_DIR}/3rdparty/libpng)
 
-add_library(wenbu-letter SHARED src/letter/Letter.cpp)
-
-# The prebuilt Skia calls vectorized helpers that only newer MSVC standard libraries carry; with older
-# Build Tools the engine defines them itself.
-include(CheckCXXSourceCompiles)
-check_cxx_source_compiles([=[
-extern "C" {
-const void* __stdcall __std_min_element_f(const void*, const void*, bool) noexcept;
-const void* __stdcall __std_max_element_f(const void*, const void*, bool) noexcept;
-const void* __stdcall __std_search_1(const void*, const void*, const void*, decltype(sizeof 0)) noexcept;
-}
-
-int main() {
-    const float values[] = {2.0f, 1.0f};
-    const unsigned char text[] = {1, 2};
-
-    return __std_min_element_f(values, values + 2, false) == __std_max_element_f(values, values + 2, false)
-        || __std_search_1(text, text + 2, text, 1) == nullptr;
-}
-]=] WENBU_STL_HAS_VECTOR_HELPERS)
-
-if(NOT WENBU_STL_HAS_VECTOR_HELPERS)
-    target_sources(wenbu-letter PRIVATE src/letter/StlCompat.cpp)
-endif()
-
+add_library(wenbu-letter SHARED src/letter/Letter.cpp src/letter/StlCompat.cpp)
 target_include_directories(wenbu-letter PRIVATE ${skia_source_SOURCE_DIR})
 target_compile_definitions(wenbu-letter PRIVATE WENBU_LETTER_EXPORTS UNICODE _UNICODE NOMINMAX SK_RELEASE)
 target_compile_options(wenbu-letter PRIVATE /W4 /permissive- /utf-8)
