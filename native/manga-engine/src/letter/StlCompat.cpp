@@ -1,6 +1,6 @@
 // The prebuilt Skia was compiled with a newer MSVC whose standard library calls these vectorized helpers
 // from its import library. Older Build Tools lack them, so they are defined here with the semantics of
-// the algorithms that call them; a newer import library's copies then simply go unused.
+// the algorithms that call them. CMake builds this file only when the toolset's library lacks them.
 
 #include <algorithm>
 #include <cstddef>
