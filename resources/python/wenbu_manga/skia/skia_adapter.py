@@ -366,9 +366,7 @@ async def dispatch_skia(
     font_dir = _resolve_font_dir(font_path, render_config)
     skia_config = _skia_config(render_config, font_dir)
 
-    pil_image = Image.fromarray(
-        cv2.cvtColor(img_inpainted, cv2.COLOR_BGR2RGB)
-    ).convert("RGBA")
+    pil_image = Image.fromarray(img_inpainted).convert("RGBA")
 
     geometries = [
         _resolve_render_geometry(img_rgb, region, mask)
@@ -393,8 +391,7 @@ async def dispatch_skia(
         except Exception as e:
             logger.error(f"Unexpected Skia render error for region {i}: {e}")
 
-    result_rgb = np.array(pil_image.convert("RGB"))
-    return cv2.cvtColor(result_rgb, cv2.COLOR_RGB2BGR)
+    return np.array(pil_image.convert("RGB"))
 
 
 def _skia_config(render_config, font_dir: str) -> SkiaRenderingConfig:
