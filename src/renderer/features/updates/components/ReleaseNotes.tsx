@@ -4,7 +4,7 @@ import type { Release } from '#contract/Updates'
 import type { Screen, SettingsPage } from '#lib/navigation'
 import { Button } from '#ui/button'
 import { areaLook } from '../areaLook'
-import { type AreaChanges, fixesOf, newByArea } from '../utils/releaseSections'
+import { type AreaChanges, changesByArea, fixesOf } from '../utils/releaseSections'
 
 export type Destination =
   | { readonly screen: Screen }
@@ -89,7 +89,7 @@ export function ReleaseNotes({
   readonly release: Release
   readonly onOpen: (destination: Destination) => void
 }) {
-  const areas = newByArea(release.changes)
+  const areas = changesByArea(release.changes)
   const fixes = fixesOf(release.changes)
 
   if (areas.length === 0 && fixes.length === 0) {

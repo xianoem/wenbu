@@ -5,11 +5,13 @@ export interface AreaChanges {
   readonly texts: ReadonlyArray<string>
 }
 
-export const newByArea = (changes: ReadonlyArray<ReleaseChange>): ReadonlyArray<AreaChanges> => {
+export const changesByArea = (
+  changes: ReadonlyArray<ReleaseChange>,
+): ReadonlyArray<AreaChanges> => {
   const areas = new Map<string, Array<string>>()
 
   for (const change of changes) {
-    if (change.kind !== 'new') {
+    if (change.kind === 'fixed') {
       continue
     }
 

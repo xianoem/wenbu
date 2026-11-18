@@ -2,9 +2,10 @@ import { describe, expect, it } from '@effect/vitest'
 import { changesFrom, parseGitLog, releaseBody, withRelease } from './CommitNotes'
 
 describe('CommitNotes', () => {
-  it('turns feat and fix commits into changes, and skips the rest', () => {
+  it('turns feat, perf and fix commits into changes, and skips the rest', () => {
     const changes = changesFrom([
       { subject: 'feat(novels): novels with chapter sources and a reader', body: '' },
+      { subject: 'perf(manga): letter pages faster', body: '' },
       { subject: 'fix(overlay): overlay keeps its position after a resolution change', body: '' },
       { subject: 'refactor(core): split the settings store', body: '' },
       { subject: 'chore(release): v0.2.0', body: '' },
@@ -13,6 +14,7 @@ describe('CommitNotes', () => {
 
     expect(changes).toEqual([
       { kind: 'new', area: 'novels', text: 'Novels with chapter sources and a reader' },
+      { kind: 'improved', area: 'manga', text: 'Letter pages faster' },
       {
         kind: 'fixed',
         area: 'overlay',
@@ -65,6 +67,7 @@ describe('CommitNotes', () => {
       changes: [
         { kind: 'new', area: 'novels', text: 'Novels with a reader' },
         { kind: 'fixed', area: 'overlay', text: 'Overlay keeps its position' },
+        { kind: 'improved', area: 'manga', text: 'Pages letter faster' },
         { kind: 'new', area: 'retired-area', text: 'Something else' },
       ],
     })
@@ -75,6 +78,10 @@ describe('CommitNotes', () => {
         '',
         '- **Novels:** Novels with a reader',
         '- **Wenbu:** Something else',
+        '',
+        '## Improved',
+        '',
+        '- **Manga:** Pages letter faster',
         '',
         '## Fixed',
         '',

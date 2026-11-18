@@ -28,11 +28,11 @@ export const parseGitLog = (log: string): ReadonlyArray<Commit> =>
       return { subject: subject.trim(), body: body.trim() }
     })
 
-const conventional = /^(feat|fix)(?:\(([^)]+)\))?!?:\s*(.+)$/
+const conventional = /^(feat|perf|fix)(?:\(([^)]+)\))?!?:\s*(.+)$/
 
 const skipTrailer = /^release-note:\s*skip\s*$/im
 
-const kinds: Readonly<Record<string, ChangeKind>> = { feat: 'new', fix: 'fixed' }
+const kinds: Readonly<Record<string, ChangeKind>> = { feat: 'new', perf: 'improved', fix: 'fixed' }
 
 const sentence = (text: string) => text.charAt(0).toUpperCase() + text.slice(1)
 
@@ -73,6 +73,10 @@ export const releaseBody = (release: Release) => {
     ...section(
       'New',
       release.changes.filter((change) => change.kind === 'new'),
+    ),
+    ...section(
+      'Improved',
+      release.changes.filter((change) => change.kind === 'improved'),
     ),
     ...section(
       'Fixed',

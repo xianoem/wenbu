@@ -1,19 +1,20 @@
 import { describe, expect, it } from '@effect/vitest'
 import type { ReleaseChange } from '#contract/Updates'
-import { fixesOf, newByArea, splitReleases } from './releaseSections'
+import { changesByArea, fixesOf, splitReleases } from './releaseSections'
 
 const changes: ReadonlyArray<ReleaseChange> = [
   { kind: 'new', area: 'details', text: 'DLsite works open in a dialog' },
   { kind: 'fixed', area: 'overlay', text: 'Overlay keeps its position' },
   { kind: 'new', area: 'novels', text: 'Novels with a reader' },
   { kind: 'new', area: 'details', text: 'Lists filter by game type' },
+  { kind: 'improved', area: 'novels', text: 'Chapters open faster' },
 ]
 
 describe('releaseSections', () => {
-  it('gathers what is new under each area', () => {
-    expect(newByArea(changes)).toEqual([
+  it('gathers what is new or improved under each area', () => {
+    expect(changesByArea(changes)).toEqual([
       { area: 'details', texts: ['DLsite works open in a dialog', 'Lists filter by game type'] },
-      { area: 'novels', texts: ['Novels with a reader'] },
+      { area: 'novels', texts: ['Novels with a reader', 'Chapters open faster'] },
     ])
   })
 

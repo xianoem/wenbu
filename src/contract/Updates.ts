@@ -46,7 +46,7 @@ export const releaseAreaOf = (scope: string | undefined): ReleaseArea => {
   return isReleaseArea(scope) ? scope : (scopeAliases[scope] ?? 'app')
 }
 
-export const ChangeKind = Schema.Literals(['new', 'fixed'])
+export const ChangeKind = Schema.Literals(['new', 'improved', 'fixed'])
 
 export type ChangeKind = typeof ChangeKind.Type
 
