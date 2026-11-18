@@ -45,7 +45,7 @@ struct Shapes {
 };
 
 // Urgent work goes before waiting normal work: finding text holds up every page behind it, while LaMa
-// runs for pages already finishing two at a time.
+// runs for pages already finishing.
 enum class GpuPriority { Normal, Urgent };
 
 // Runs work on one thread, one task at a time, as the plugin's on_gpu lock does.

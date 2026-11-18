@@ -41,6 +41,9 @@ FourierTables fourierTables(int h, int w);
 // beyond, which keeps the padding small while TensorRT-RTX compiles a bounded number of shapes.
 int modelSide(int length);
 
+// Every input shape (width, height) a crop up to `size` can take, those real pages meet most often first.
+std::vector<std::array<int, 2>> warmShapes(int size);
+
 // Where LaMa looks for one crop: `region` of the page, centred on the crop and kept inside the page, is
 // scaled by `scale` to `scaled` pixels and padded by mirroring to `model`.
 struct LamaWindow {

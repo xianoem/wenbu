@@ -84,7 +84,7 @@ private:
     Family& familyOf(const std::filesystem::path& folder);
     std::optional<Plan> planBlock(const LetterBlock& block, const LetterBox& box, const std::optional<std::vector<uint8_t>>& mask,
                                   const LetterOptions& options, const std::optional<LineBreaking>& override);
-    Rgb letterBlock(const Rgb& page, const LetterBlock& block, const Geometry& geometry, const LetterOptions& options);
+    void letterBlock(Rgb& page, const LetterBlock& block, const Geometry& geometry, const LetterOptions& options);
 
     std::mutex lock_;
     std::map<std::filesystem::path, std::unique_ptr<Family>> families_;

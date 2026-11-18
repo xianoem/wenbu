@@ -8,6 +8,7 @@
 #include <stdexcept>
 #include <thread>
 
+#include "CleanPlan.hpp"
 #include "Fonts.hpp"
 #include "PillowResize.hpp"
 
@@ -15,7 +16,8 @@ namespace engine {
 
 namespace {
 
-constexpr int finishing = 2;
+// LaMa crops take turns on the GPU, so a third finishing page letters and saves on the CPU meanwhile.
+constexpr int finishing = 3;
 
 struct Stopped : std::runtime_error {
     Stopped() : std::runtime_error("The run was cancelled.") {}
@@ -106,6 +108,30 @@ void keepOriginal(const RunPage& page, const RunSettings& settings) {
     }
 
     savePage(page.output, readPage(page.source), formatOf(settings, page.source), settings.quality);
+}
+
+std::array<double, 4> boxOf(const FoundBlock& found) {
+    const auto [x1, y1, x2, y2] = found.block.xyxy;
+
+    return {static_cast<double>(x1), static_cast<double>(y1), static_cast<double>(x2), static_cast<double>(y2)};
+}
+
+std::vector<CleanBlock> fillBlocks(const Found& found, const std::vector<std::array<double, 4>>& boxes, const Rgb& page) {
+    const std::vector<std::array<double, 4>> reach = textReach(found.mask, page.width, page.height, boxes);
+    std::vector<CleanBlock> cleaning;
+
+    for (size_t index = 0; index < found.blocks.size(); index++) {
+        CleanBlock block;
+
+        block.box = boxes[index];
+        block.reach = reach[index];
+        block.fill = true;
+        block.fg = found.blocks[index].colours.fg;
+        block.bg = found.blocks[index].colours.bg;
+        cleaning.push_back(block);
+    }
+
+    return cleaning;
 }
 
 std::string firstLine(const std::string& message) {
@@ -234,7 +260,18 @@ RunResult Runner::run(const std::vector<RunPage>& pages, const RunSettings& sett
         stage(index, "cleaning");
 
         const Rgb& original = read.rgb;
-        const Rgb cleaned = inpainter_.inpaint(original, found.mask, {settings.inpaintingSize, settings.wholePage});
+        const CleanPage paper(original);
+        std::vector<std::array<double, 4>> boxes;
+
+        for (const FoundBlock& block : found.blocks) {
+            boxes.push_back(boxOf(block));
+        }
+
+        const std::vector<CleanBlock> cleaning = fillBlocks(found, boxes, original);
+        const Rgb cleaned = cleanPage(paper, found.mask, cleaning, [&](const Rgb& image, const std::vector<uint8_t>& mask) {
+            return inpainter_.inpaint(image, mask, {settings.inpaintingSize, settings.wholePage});
+        });
+        const std::vector<std::optional<std::array<int, 4>>> areas = ownTextAreas(paper, boxes);
 
         stage(index, "lettering");
 
@@ -254,6 +291,13 @@ RunResult Runner::run(const std::vector<RunPage>& pages, const RunSettings& sett
             letter.region.angle = block.block.angle;
             letter.fg = block.colours.fg;
             letter.bg = block.colours.bg;
+
+            if (const std::optional<std::array<int, 4>>& area = areas[at]) {
+                letter.region.textBox = std::array<double, 4>{static_cast<double>((*area)[0]), static_cast<double>((*area)[1]),
+                                                              static_cast<double>((*area)[2]), static_cast<double>((*area)[3])};
+                letter.lettering = LetterSettings{};
+            }
+
             blocks.push_back(letter);
         }
 
@@ -287,7 +331,8 @@ RunResult Runner::run(const std::vector<RunPage>& pages, const RunSettings& sett
     };
 
     std::vector<std::thread> workers;
-    const size_t count = std::min(pages.size(), static_cast<size_t>(settings.pagesAhead));
+    // One page more than can finish keeps finding text while the rest finish.
+    const size_t count = std::min(pages.size(), static_cast<size_t>(std::max(settings.pagesAhead, finishing + 1)));
 
     for (size_t i = 0; i < count; i++) {
         workers.emplace_back(worker);

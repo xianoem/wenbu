@@ -5,6 +5,7 @@
 #include <cmath>
 #include <cstring>
 #include <numbers>
+#include <tuple>
 
 #include <opencv2/imgproc.hpp>
 
@@ -16,6 +17,16 @@ namespace {
 
 constexpr int minContext = 48;
 constexpr int align = 8;
+
+// LaMa's input shapes (width, height) by how often the crops of 44 manga pages met them, most common first.
+constexpr std::array<std::array<int, 2>, 53> commonShapes = {{
+    {1280, 2048}, {512, 768}, {640, 896}, {896, 1280}, {512, 640}, {768, 1280}, {896, 2048}, {384, 640}, {640, 1024},
+    {768, 2048}, {1024, 2048}, {384, 512}, {640, 768}, {1792, 2048}, {1536, 2048}, {1280, 1536}, {1024, 1792},
+    {768, 1024}, {512, 896}, {1024, 1536}, {768, 896}, {896, 896}, {1536, 1280}, {768, 1536}, {896, 1792},
+    {640, 1280}, {1536, 1536}, {768, 1792}, {2048, 1792}, {1024, 1280}, {1280, 1280}, {2048, 1536}, {384, 768},
+    {384, 384}, {256, 384}, {1024, 1024}, {1280, 1792}, {896, 768}, {1536, 512}, {256, 256}, {1792, 1536},
+    {1024, 896}, {512, 1280}, {896, 1536}, {640, 1536}, {2048, 896}, {1536, 1792}, {2048, 2048}, {1792, 1792},
+    {1792, 1280}, {512, 1536}, {640, 640}, {1280, 1024}}};
 
 std::pair<int, int> grow(int start, int end, int limit) {
     const int target = static_cast<int>(std::ceil(static_cast<double>(end - start) / align)) * align;
@@ -340,25 +351,37 @@ cv::Mat Inpainter::paint(const cv::Mat& image, const cv::Mat& mask, int width, i
     return painted;
 }
 
-int Inpainter::sizes(int size) {
-    int sides = 0;
+std::vector<std::array<int, 2>> warmShapes(int size) {
+    std::vector<std::array<int, 2>> shapes;
 
-    for (int side = 256; side <= modelSide(size); side = modelSide(side + 1)) {
-        sides++;
+    for (int height = 256; height <= modelSide(size); height = modelSide(height + 1)) {
+        for (int width = 256; width <= modelSide(size); width = modelSide(width + 1)) {
+            shapes.push_back({width, height});
+        }
     }
 
-    return sides * sides;
+    const auto order = [](const std::array<int, 2>& shape) {
+        const auto rank = std::find(commonShapes.begin(), commonShapes.end(), shape) - commonShapes.begin();
+
+        return std::tuple(rank, std::max(shape[0], shape[1]), shape[0] * shape[1]);
+    };
+
+    std::stable_sort(shapes.begin(), shapes.end(), [&](const auto& a, const auto& b) { return order(a) < order(b); });
+
+    return shapes;
+}
+
+int Inpainter::sizes(int size) {
+    return static_cast<int>(warmShapes(size).size());
 }
 
 void Inpainter::warm(int size, const std::function<bool()>& next) {
-    for (int height = 256; height <= modelSide(size); height = modelSide(height + 1)) {
-        for (int width = 256; width <= modelSide(size); width = modelSide(width + 1)) {
-            if (!next()) {
-                return;
-            }
-
-            paint(cv::Mat::zeros(height, width, CV_8UC3), cv::Mat::zeros(height, width, CV_8UC1), width, height);
+    for (const auto& [width, height] : warmShapes(size)) {
+        if (!next()) {
+            return;
         }
+
+        paint(cv::Mat::zeros(height, width, CV_8UC3), cv::Mat::zeros(height, width, CV_8UC1), width, height);
     }
 }
 

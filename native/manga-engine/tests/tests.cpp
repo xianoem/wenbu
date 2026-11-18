@@ -8,13 +8,16 @@
 #include <fstream>
 #include <functional>
 #include <numeric>
+#include <set>
 #include <string>
 #include <vector>
 
 #include <cmath>
 
 #include <opencv2/imgcodecs.hpp>
+#include <opencv2/imgproc.hpp>
 
+#include "CleanPlan.hpp"
 #include "DbBoxes.hpp"
 #include "Images.hpp"
 #include "Inpaint.hpp"
@@ -453,6 +456,100 @@ void repetition() {
     check(single && single->period == 1 && single->start == 1, "stops a single token stuck for sixteen steps");
 }
 
+struct CleanScene {
+    engine::Rgb page;
+    std::vector<uint8_t> mask;
+    engine::CleanBlock bubble;
+    engine::CleanBlock art;
+};
+
+CleanScene cleanScene() {
+    constexpr int width = 600;
+    constexpr int height = 400;
+    cv::Mat image(height, width, CV_8UC3, cv::Scalar(128, 128, 128));
+    cv::Mat mask = cv::Mat::zeros(height, width, CV_8UC1);
+
+    cv::ellipse(image, {150, 200}, {100, 120}, 0, 0, 360, cv::Scalar(255, 255, 255), -1);
+    cv::ellipse(image, {150, 200}, {100, 120}, 0, 0, 360, cv::Scalar(0, 0, 0), 3);
+
+    for (const int x : {125, 145, 165, 435, 455, 475}) {
+        cv::rectangle(image, cv::Rect(x, 175, 6, 50), cv::Scalar(0, 0, 0), -1);
+        cv::rectangle(mask, cv::Rect(x - 1, 174, 8, 52), cv::Scalar(255), -1);
+    }
+
+    // A closing mark the detector's box missed, joined to the block's text in the mask.
+    cv::rectangle(image, cv::Rect(190, 190, 5, 20), cv::Scalar(0, 0, 0), -1);
+    cv::rectangle(mask, cv::Rect(189, 189, 7, 22), cv::Scalar(255), -1);
+    cv::rectangle(mask, cv::Rect(170, 196, 20, 8), cv::Scalar(255), -1);
+
+    CleanScene scene{{width, height, std::vector<uint8_t>(image.data, image.data + image.total() * 3)},
+                     std::vector<uint8_t>(mask.data, mask.data + mask.total()),
+                     {},
+                     {}};
+
+    scene.bubble.box = {120, 170, 176, 230};
+    scene.bubble.fill = true;
+    scene.art.box = {430, 170, 486, 230};
+    scene.art.fill = true;
+
+    return scene;
+}
+
+void cleanPages() {
+    const CleanScene scene = cleanScene();
+    const engine::CleanPage page(scene.page);
+    std::vector<std::vector<uint8_t>> asked;
+
+    const auto inpaint = [&](const engine::Rgb& image, const std::vector<uint8_t>& mask) {
+        engine::Rgb painted = image;
+
+        asked.push_back(mask);
+
+        for (size_t p = 0; p < mask.size(); p++) {
+            if (mask[p] > 0) {
+                std::fill_n(painted.data.begin() + static_cast<long>(p * 3), 3, uint8_t{128});
+            }
+        }
+
+        return painted;
+    };
+    const auto pixel = [](const engine::Rgb& image, int x, int y) {
+        const size_t p = (static_cast<size_t>(y) * image.width + x) * 3;
+
+        return std::array<int, 3>{image.data[p], image.data[p + 1], image.data[p + 2]};
+    };
+    const auto masked = [&](const std::vector<uint8_t>& mask, int x, int y) { return mask[static_cast<size_t>(y) * scene.page.width + x] > 0; };
+
+    const engine::Rgb both = engine::cleanPage(page, scene.mask, {scene.bubble, scene.art}, inpaint);
+
+    check(asked.size() == 1 && !masked(asked[0], 147, 200) && masked(asked[0], 457, 200),
+          "leaves only text outside bubbles to LaMa");
+    check(pixel(both, 147, 200) == std::array<int, 3>{255, 255, 255} && pixel(both, 457, 200) == std::array<int, 3>{128, 128, 128},
+          "fills text in a bubble with its paper and inpaints the rest");
+
+    asked.clear();
+
+    const engine::Rgb bubbleOnly = engine::cleanPage(page, scene.mask, {scene.bubble}, inpaint);
+
+    check(asked.empty() && pixel(bubbleOnly, 147, 200) == std::array<int, 3>{255, 255, 255}, "skips LaMa when every block is in a bubble");
+
+    const std::vector<std::array<double, 4>> reach = engine::textReach(scene.mask, scene.page.width, scene.page.height, {scene.bubble.box, scene.art.box});
+    engine::CleanBlock reaching = scene.bubble;
+
+    reaching.reach = reach[0];
+
+    const engine::Rgb marked = engine::cleanPage(page, scene.mask, {reaching}, inpaint);
+
+    check(reach[1] == scene.art.box && pixel(marked, 192, 200) == std::array<int, 3>{255, 255, 255},
+          "cleans the text a block's box missed but its mask joins");
+
+    const std::array<double, 4> second = {150, 260, 176, 290};
+
+    check(engine::ownTextAreas(page, {scene.bubble.box})[0].has_value() &&
+              !engine::ownTextAreas(page, {scene.bubble.box, second})[0].has_value(),
+          "letters in a bubble's text area only when the bubble holds no other block");
+}
+
 void inpaintCrops(const std::filesystem::path& fixtures) {
     const engine::Rgb mask = engine::readPage(fixtures / "inpaint-mask.png", engine::Alpha::Dropped);
     std::vector<uint8_t> grey(static_cast<size_t>(mask.width) * mask.height);
@@ -503,6 +600,16 @@ void lamaWindows() {
               large.scaled[1] >= 760 && large.region[0] == 500 && large.region[2] == 3500 &&
               large.region[1] <= 1000 && large.region[3] >= 2000,
           "scales a large crop down and widens its short side to 768");
+
+    const std::vector<std::array<int, 2>> shapes = engine::warmShapes(2048);
+    const std::set<std::array<int, 2>> distinct(shapes.begin(), shapes.end());
+    const std::vector<std::array<int, 2>> smaller = engine::warmShapes(1024);
+
+    check(shapes.size() == 121 && distinct.size() == 121 && shapes.front() == std::array<int, 2>{1280, 2048},
+          "warms every LaMa shape once, the most common first");
+    const bool fits = std::all_of(smaller.begin(), smaller.end(), [](const auto& shape) { return std::max(shape[0], shape[1]) <= 1024; });
+
+    check(smaller.size() == 49 && fits, "warms only the shapes a smaller inpainting size can take");
 }
 
 std::string styleName(engine::Style style) {
@@ -745,6 +852,7 @@ int main(int argc, char** argv) {
     guarded("filters", [&] { filters(fixtures, argc > 4 ? engine::pathOf(argv[4]) : std::filesystem::path()); });
     guarded("colours", [] { colours(); });
     guarded("repetition", [] { repetition(); });
+    guarded("clean pages", [&] { cleanPages(); });
     guarded("inpaint crops", [&] { inpaintCrops(fixtures); });
     guarded("LaMa windows", [&] { lamaWindows(); });
     guarded("line breaking", [&] { lineBreaking(fixtures); });

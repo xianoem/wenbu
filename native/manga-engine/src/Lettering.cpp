@@ -592,12 +592,12 @@ std::optional<Lettering::Plan> Lettering::planBlock(const LetterBlock& block, co
     return Plan{*layout, &family, features, centreX, centreY};
 }
 
-Rgb Lettering::letterBlock(const Rgb& page, const LetterBlock& block, const Geometry& geometry, const LetterOptions& options) {
+void Lettering::letterBlock(Rgb& page, const LetterBlock& block, const Geometry& geometry, const LetterOptions& options) {
     const auto [x1, y1, x2, y2] = geometry.box;
     const std::optional<Plan> plan = planBlock(block, geometry.box, geometry.mask, options, std::nullopt);
 
     if (!plan) {
-        return page;
+        return;
     }
 
     const int cx1 = std::max(0, x1);
@@ -707,7 +707,7 @@ Rgb Lettering::letterBlock(const Rgb& page, const LetterBlock& block, const Geom
     drawing.pivotY = static_cast<float>(centreY);
 
     if (!runs.empty() && wenbu_letter_draw(bgra.data(), large.width, large.height, runs.data(), static_cast<int>(runs.size()), &drawing) != 0) {
-        return page;
+        return;
     }
 
     Rgb drawn{large.width, large.height, std::vector<uint8_t>(static_cast<size_t>(large.width) * large.height * 3)};
@@ -719,14 +719,11 @@ Rgb Lettering::letterBlock(const Rgb& page, const LetterBlock& block, const Geom
     }
 
     const Rgb small = factor == 1 ? drawn : pillowResize(drawn, cropWidth, cropHeight, Filter::Lanczos);
-    Rgb result = page;
 
     for (int row = 0; row < cropHeight; row++) {
         std::copy(small.data.begin() + static_cast<long>(row) * cropWidth * 3, small.data.begin() + static_cast<long>(row + 1) * cropWidth * 3,
-                  result.data.begin() + (static_cast<long>(cy1 + row) * page.width + cx1) * 3);
+                  page.data.begin() + (static_cast<long>(cy1 + row) * page.width + cx1) * 3);
     }
-
-    return result;
 }
 
 Rgb Lettering::render(const Rgb& page, const Rgb& original, const std::vector<LetterBlock>& blocks, const LetterOptions& options) {
@@ -750,7 +747,7 @@ Rgb Lettering::render(const Rgb& page, const Rgb& original, const std::vector<Le
     Rgb result = page;
 
     for (size_t index = 0; index < shown.size(); index++) {
-        result = letterBlock(result, *shown[index], constrained[index], options);
+        letterBlock(result, *shown[index], constrained[index], options);
     }
 
     return result;

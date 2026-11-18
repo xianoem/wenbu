@@ -4,6 +4,7 @@
 #pragma once
 
 #include <array>
+#include <functional>
 #include <optional>
 #include <vector>
 
@@ -20,6 +21,8 @@ struct CleanBlock {
     bool fill = false;
     std::optional<std::array<int, 3>> fg;
     std::optional<std::array<int, 3>> bg;
+    // Where the block's scanned text lies, when it reaches past the box.
+    std::optional<std::array<double, 4>> reach;
 };
 
 // A page-sized mask that is zero outside one rectangle.
@@ -69,8 +72,22 @@ Plan cleanPlan(const CleanPage& page, const std::vector<uint8_t>& scan, const st
 Rgb settlePaper(const CleanPage& page, const Rgb& inpainted, const std::vector<CleanBlock>& blocks,
                 const std::vector<uint8_t>& mask);
 
+using Inpaint = std::function<Rgb(const Rgb& image, const std::vector<uint8_t>& mask)>;
+
+// The plan carried out, with LaMa only for what the plan leaves to it.
+Rgb cleanPage(const CleanPage& page, const std::vector<uint8_t>& scan, const std::vector<CleanBlock>& blocks,
+              const Inpaint& inpaint);
+
 // text_area: the bubble around a block, inset, where lettering may go.
 std::optional<std::array<int, 4>> textArea(const CleanPage& page, const std::array<double, 4>& box);
+
+// Each box grown over the parts of the mask it touches, so a mark the detector's box missed is still cleaned.
+std::vector<std::array<double, 4>> textReach(const std::vector<uint8_t>& mask, int width, int height,
+                                             const std::vector<std::array<double, 4>>& boxes);
+
+// Each box's text area, kept only when its bubble holds no other box: a frame around a whole page of
+// narration is no bubble to letter in.
+std::vector<std::optional<std::array<int, 4>>> ownTextAreas(const CleanPage& page, const std::vector<std::array<double, 4>>& boxes);
 
 // blend_patch: a brushed patch takes the tone of the ring around it and the paper grain from beside it.
 Rgb blendPatch(const Rgb& base, const Rgb& inpainted, const std::vector<uint8_t>& mask);

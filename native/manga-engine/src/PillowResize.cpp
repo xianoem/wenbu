@@ -5,6 +5,8 @@
 #include <cstring>
 #include <numbers>
 
+#include <opencv2/core.hpp>
+
 namespace engine {
 
 namespace {
@@ -91,25 +93,27 @@ Rgb horizontal(const Rgb& image, int width, Filter filter) {
     const Coefficients c = coefficientsOf(image.width, width, filter);
     Rgb out{width, image.height, std::vector<uint8_t>(static_cast<size_t>(width) * image.height * 3)};
 
-    for (int y = 0; y < image.height; y++) {
-        const uint8_t* row = image.data.data() + static_cast<size_t>(y) * image.width * 3;
+    cv::parallel_for_(cv::Range(0, image.height), [&](const cv::Range& rows) {
+        for (int y = rows.start; y < rows.end; y++) {
+            const uint8_t* row = image.data.data() + static_cast<size_t>(y) * image.width * 3;
 
-        for (int x = 0; x < width; x++) {
-            const int min = c.bounds[static_cast<size_t>(x) * 2];
-            const int count = c.bounds[static_cast<size_t>(x) * 2 + 1];
-            const int* weights = c.weights.data() + static_cast<size_t>(x) * c.size;
+            for (int x = 0; x < width; x++) {
+                const int min = c.bounds[static_cast<size_t>(x) * 2];
+                const int count = c.bounds[static_cast<size_t>(x) * 2 + 1];
+                const int* weights = c.weights.data() + static_cast<size_t>(x) * c.size;
 
-            for (int channel = 0; channel < 3; channel++) {
-                int sum = half;
+                for (int channel = 0; channel < 3; channel++) {
+                    int sum = half;
 
-                for (int k = 0; k < count; k++) {
-                    sum += row[(min + k) * 3 + channel] * weights[k];
+                    for (int k = 0; k < count; k++) {
+                        sum += row[(min + k) * 3 + channel] * weights[k];
+                    }
+
+                    out.data[(static_cast<size_t>(y) * width + x) * 3 + channel] = clip8(sum);
                 }
-
-                out.data[(static_cast<size_t>(y) * width + x) * 3 + channel] = clip8(sum);
             }
         }
-    }
+    });
 
     return out;
 }
@@ -119,21 +123,23 @@ Rgb vertical(const Rgb& image, int height, Filter filter) {
     const size_t stride = static_cast<size_t>(image.width) * 3;
     Rgb out{image.width, height, std::vector<uint8_t>(stride * height)};
 
-    for (int y = 0; y < height; y++) {
-        const int min = c.bounds[static_cast<size_t>(y) * 2];
-        const int count = c.bounds[static_cast<size_t>(y) * 2 + 1];
-        const int* weights = c.weights.data() + static_cast<size_t>(y) * c.size;
+    cv::parallel_for_(cv::Range(0, height), [&](const cv::Range& rows) {
+        for (int y = rows.start; y < rows.end; y++) {
+            const int min = c.bounds[static_cast<size_t>(y) * 2];
+            const int count = c.bounds[static_cast<size_t>(y) * 2 + 1];
+            const int* weights = c.weights.data() + static_cast<size_t>(y) * c.size;
 
-        for (size_t column = 0; column < stride; column++) {
-            int sum = half;
+            for (size_t column = 0; column < stride; column++) {
+                int sum = half;
 
-            for (int k = 0; k < count; k++) {
-                sum += image.data[(min + k) * stride + column] * weights[k];
+                for (int k = 0; k < count; k++) {
+                    sum += image.data[(min + k) * stride + column] * weights[k];
+                }
+
+                out.data[y * stride + column] = clip8(sum);
             }
-
-            out.data[y * stride + column] = clip8(sum);
         }
-    }
+    });
 
     return out;
 }

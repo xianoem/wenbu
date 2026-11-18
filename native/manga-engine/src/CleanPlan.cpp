@@ -109,9 +109,9 @@ Region blockMask(const CleanPage& page, const cv::Mat& scan, const CleanBlock& b
     const int height = page.rgb.height;
 
     if (!block.drawn) {
-        const auto [x1, y1, x2, y2] = clipped({block.box[0] - scanMargin, block.box[1] - scanMargin,
-                                               block.box[2] + scanMargin, block.box[3] + scanMargin},
-                                              width, height);
+        const std::array<double, 4> reach = block.reach.value_or(block.box);
+        const auto [x1, y1, x2, y2] =
+            clipped({reach[0] - scanMargin, reach[1] - scanMargin, reach[2] + scanMargin, reach[3] + scanMargin}, width, height);
 
         if (x2 > x1 && y2 > y1) {
             const cv::Mat data = scan(cv::Rect(x1, y1, x2 - x1, y2 - y1)) >= 127;
@@ -430,6 +430,17 @@ Rgb settlePaper(const CleanPage& page, const Rgb& inpainted, const std::vector<C
     return settled;
 }
 
+Rgb cleanPage(const CleanPage& page, const std::vector<uint8_t>& scan, const std::vector<CleanBlock>& blocks,
+              const Inpaint& inpaint) {
+    const Plan plan = cleanPlan(page, scan, blocks, std::nullopt);
+
+    if (std::none_of(plan.inpaint.begin(), plan.inpaint.end(), [](uint8_t value) { return value > 0; })) {
+        return plan.filled;
+    }
+
+    return settlePaper(page, inpaint(plan.filled, plan.inpaint), blocks, plan.inpaint);
+}
+
 std::optional<std::array<int, 4>> textArea(const CleanPage& page, const std::array<double, 4>& box) {
     const std::optional<Bubble> around = bubbleAround(page, box);
 
@@ -458,6 +469,72 @@ std::optional<std::array<int, 4>> textArea(const CleanPage& page, const std::arr
     const int dy = static_cast<int>(roundHalfEven((y2 - y1) * bubbleInset[1]));
 
     return std::array<int, 4>{x1 + dx, y1 + dy, x2 - dx, y2 - dy};
+}
+
+std::vector<std::array<double, 4>> textReach(const std::vector<uint8_t>& mask, int width, int height,
+                                             const std::vector<std::array<double, 4>>& boxes) {
+    const cv::Mat binary = cv::Mat(height, width, CV_8UC1, const_cast<uint8_t*>(mask.data())) >= 127;
+    cv::Mat labels;
+    cv::Mat stats;
+    cv::Mat centroids;
+
+    cv::connectedComponentsWithStats(binary, labels, stats, centroids, 8);
+
+    std::vector<std::array<double, 4>> reached;
+
+    for (const std::array<double, 4>& box : boxes) {
+        const auto [x1, y1, x2, y2] = clipped(box, width, height);
+        std::array<double, 4> grown = box;
+
+        for (int y = y1; y < y2; y++) {
+            const int* row = labels.ptr<int>(y);
+
+            for (int x = x1; x < x2; x++) {
+                const int label = row[x];
+
+                if (label == 0) {
+                    continue;
+                }
+
+                const int left = stats.at<int>(label, cv::CC_STAT_LEFT);
+                const int top = stats.at<int>(label, cv::CC_STAT_TOP);
+
+                grown[0] = std::min(grown[0], static_cast<double>(left));
+                grown[1] = std::min(grown[1], static_cast<double>(top));
+                grown[2] = std::max(grown[2], static_cast<double>(left + stats.at<int>(label, cv::CC_STAT_WIDTH)));
+                grown[3] = std::max(grown[3], static_cast<double>(top + stats.at<int>(label, cv::CC_STAT_HEIGHT)));
+            }
+        }
+
+        reached.push_back(grown);
+    }
+
+    return reached;
+}
+
+std::vector<std::optional<std::array<int, 4>>> ownTextAreas(const CleanPage& page, const std::vector<std::array<double, 4>>& boxes) {
+    std::vector<std::optional<std::array<int, 4>>> areas;
+
+    for (size_t index = 0; index < boxes.size(); index++) {
+        std::optional<std::array<int, 4>> area = textArea(page, boxes[index]);
+
+        const auto inside = [&](const std::array<double, 4>& other) {
+            const double x = (other[0] + other[2]) / 2;
+            const double y = (other[1] + other[3]) / 2;
+
+            return x >= (*area)[0] && x < (*area)[2] && y >= (*area)[1] && y < (*area)[3];
+        };
+
+        for (size_t other = 0; area && other < boxes.size(); other++) {
+            if (other != index && inside(boxes[other])) {
+                area.reset();
+            }
+        }
+
+        areas.push_back(area);
+    }
+
+    return areas;
 }
 
 Rgb blendPatch(const Rgb& base, const Rgb& inpainted, const std::vector<uint8_t>& mask) {
