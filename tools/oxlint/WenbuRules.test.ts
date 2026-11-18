@@ -6,6 +6,7 @@ import {
   noManualTagComparison,
   noManualTaggedConstruction,
   noModuleMocking,
+  noPositionedScrollArea,
   noReexportOnlyModules,
   noRuntimeTypeof,
   noSchemaStore,
@@ -202,5 +203,30 @@ tester.run('wenbu/log-message-literal', logMessageLiteral, {
       errors: [{ messageId: 'literal' }],
     },
     { code: 'Effect.log()', errors: [{ messageId: 'literal' }] },
+  ],
+})
+
+const tsx = new RuleTester({ languageOptions: { parserOptions: { lang: 'tsx' } } })
+
+tsx.run('wenbu/no-positioned-scroll-area', noPositionedScrollArea, {
+  valid: [
+    '<ScrollArea className="size-full" />',
+    '<ScrollArea className="min-h-0 flex-1" viewport={{ className: "absolute" }} />',
+    '<div className="absolute inset-0" />',
+    '<ScrollArea className={cn("h-40", open && "rounded-xl")} />',
+  ],
+  invalid: [
+    {
+      code: '<ScrollArea className="absolute inset-0" />',
+      errors: [{ messageId: 'positioned' }],
+    },
+    {
+      code: '<ScrollArea className={cn("inset-0", open && "fixed")} />',
+      errors: [{ messageId: 'positioned' }],
+    },
+    {
+      code: '<ScrollArea className={`md:sticky top-0 ${extra}`} />',
+      errors: [{ messageId: 'positioned' }],
+    },
   ],
 })

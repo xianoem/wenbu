@@ -487,6 +487,76 @@ export const noUnknownParameters = defineRule({
   },
 })
 
+const positionClasses = new Set(['absolute', 'fixed', 'sticky'])
+
+const classStrings = (node: Node | null | undefined): ReadonlyArray<string> => {
+  if (node === null || node === undefined) {
+    return []
+  }
+
+  if (node.type === 'Literal') {
+    return Predicate.isString(node.value) ? [node.value] : []
+  }
+
+  if (node.type === 'TemplateLiteral') {
+    return node.quasis.map((quasi) => quasi.value.cooked ?? '')
+  }
+
+  if (node.type === 'JSXExpressionContainer') {
+    return classStrings(node.expression)
+  }
+
+  if (node.type === 'CallExpression') {
+    return node.arguments.flatMap((argument) => classStrings(argument))
+  }
+
+  if (node.type === 'LogicalExpression') {
+    return [...classStrings(node.left), ...classStrings(node.right)]
+  }
+
+  if (node.type === 'ConditionalExpression') {
+    return [...classStrings(node.consequent), ...classStrings(node.alternate)]
+  }
+
+  return []
+}
+
+const positions = (classes: string) =>
+  classes.split(/\s+/).some((token) => positionClasses.has(token.split(':').at(-1) ?? token))
+
+export const noPositionedScrollArea = defineRule({
+  meta: {
+    type: 'problem',
+    docs: {
+      description: 'Disallow position classes on ScrollArea, whose root is always relative.',
+    },
+    messages: {
+      positioned:
+        'Base UI sets an inline position: relative on the ScrollArea root, so this class does nothing. Position a wrapper, or size the ScrollArea with size-full.',
+    },
+  },
+  createOnce(context) {
+    return {
+      JSXOpeningElement(node) {
+        if (node.name.type !== 'JSXIdentifier' || node.name.name !== 'ScrollArea') {
+          return
+        }
+
+        for (const attribute of node.attributes) {
+          if (
+            attribute.type === 'JSXAttribute' &&
+            attribute.name.type === 'JSXIdentifier' &&
+            attribute.name.name === 'className' &&
+            classStrings(attribute.value).some((classes) => positions(classes))
+          ) {
+            context.report({ node: attribute, messageId: 'positioned' })
+          }
+        }
+      },
+    }
+  },
+})
+
 export const requireBlankLines = defineRule({
   meta: {
     type: 'layout',
@@ -566,5 +636,6 @@ export default definePlugin({
     'no-runtime-typeof': noRuntimeTypeof,
     'no-unknown-parameters': noUnknownParameters,
     'require-blank-lines': requireBlankLines,
+    'no-positioned-scroll-area': noPositionedScrollArea,
   },
 })

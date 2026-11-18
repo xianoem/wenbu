@@ -222,7 +222,7 @@ function ScrollStage({
   }, [zoom, virtualizer])
 
   return (
-    <ScrollArea scrollbars="both" className="absolute inset-0" viewport={{ ref: setScroller }}>
+    <ScrollArea scrollbars="both" className="size-full" viewport={{ ref: setScroller }}>
       <div
         className="relative"
         style={{ height: virtualizer.getTotalSize(), width: Math.max(1, zoom) * stage.width }}
@@ -656,7 +656,7 @@ function Stage({
         ) : (
           <ScrollArea
             scrollbars="both"
-            className="absolute inset-0"
+            className="size-full"
             viewport={{ ref: viewportRef }}
             contentClassName="grid"
           >

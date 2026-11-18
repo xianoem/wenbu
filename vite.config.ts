@@ -58,6 +58,7 @@ export default defineConfig({
       'wenbu/no-try-catch': 'error',
       'wenbu/log-message-literal': 'error',
       'wenbu/no-switch': 'error',
+      'wenbu/no-positioned-scroll-area': 'error',
       'wenbu/no-module-mocking': 'error',
       'wenbu/no-schema-store': 'error',
       'wenbu/no-chained-type-assertions': 'error',
