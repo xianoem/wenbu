@@ -13,14 +13,17 @@ const retryShare = 0.1
 export const costOf = (price: ModelPrice, inputTokens: number, outputTokens: number) =>
   (inputTokens * price.input + outputTokens * price.output) / 1_000_000
 
+export type PromptOf = (batch: ReadonlyArray<TranslationItem>) => Effect.Effect<string>
+
 export const batchTokens = Effect.fnUntraced(function* (
   settings: TranslationSettings,
   batch: ReadonlyArray<TranslationItem>,
+  promptOf: PromptOf = (items) => batchPrompt(settings, items),
 ) {
   const text = batch.reduce((total, item) => total + estimateTokens(item.src), 0)
 
   return {
-    input: estimateTokens(systemPrompt) + estimateTokens(yield* batchPrompt(settings, batch)),
+    input: estimateTokens(systemPrompt) + estimateTokens(yield* promptOf(batch)),
     output: Math.ceil(text * outputRatio),
   }
 })
@@ -29,13 +32,14 @@ export const estimateCost = Effect.fnUntraced(function* (
   settings: TranslationSettings,
   items: ReadonlyArray<TranslationItem>,
   price: ModelPrice | undefined,
+  promptOf?: PromptOf,
 ) {
   const batches = batchesOf(items, settings.chunkTokens)
   let inputTokens = 0
   let textTokens = 0
 
   for (const batch of batches) {
-    const tokens = yield* batchTokens(settings, batch)
+    const tokens = yield* batchTokens(settings, batch, promptOf)
 
     inputTokens += tokens.input
     textTokens += batch.reduce((total, item) => total + estimateTokens(item.src), 0)

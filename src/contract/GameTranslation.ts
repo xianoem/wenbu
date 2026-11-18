@@ -1,5 +1,6 @@
 import { Schema } from 'effect'
 import { Rpc, RpcGroup } from 'effect/rpc'
+import { GameGlossary, GlossaryEntryInput, GlossaryEstimate } from './GameGlossary'
 import { ModelPrice } from './Llm'
 import { NotEnoughSpace } from './Storage'
 
@@ -134,11 +135,19 @@ export const defaultTranslationSettings: TranslationSettings = {
   },
 }
 
-export const StepId = Schema.Literals(['prepare', 'extract', 'translate', 'apply'])
+export const StepId = Schema.Literals(['prepare', 'extract', 'glossary', 'translate', 'apply'])
 
 export type StepId = typeof StepId.Type
 
 export const stepIds: ReadonlyArray<StepId> = ['prepare', 'extract', 'translate', 'apply']
+
+export const glossaryStepIds: ReadonlyArray<StepId> = [
+  'prepare',
+  'extract',
+  'glossary',
+  'translate',
+  'apply',
+]
 
 export const StepStatus = Schema.Literals([
   'pending',
@@ -190,6 +199,7 @@ export const TranslationEstimate = Schema.Struct({
   outputTokens: Schema.Int,
   costUsd: Schema.optional(Schema.Struct({ low: Schema.Finite, high: Schema.Finite })),
   price: Schema.optional(ModelPrice),
+  glossary: Schema.optional(GlossaryEstimate),
 })
 
 export type TranslationEstimate = typeof TranslationEstimate.Type
@@ -497,5 +507,26 @@ export class GameTranslationRpc extends RpcGroup.make(
     payload: ByGame,
     success: Schema.OptionFromNullOr(TranslationRun),
     stream: true,
+  }),
+  Rpc.make('getGameGlossary', { payload: ByGame, success: GameGlossary, error: TranslationError }),
+  Rpc.make('setGameGlossaryEnabled', {
+    payload: { ...ByGame, enabled: Schema.Boolean },
+    success: GameGlossary,
+    error: TranslationError,
+  }),
+  Rpc.make('prepareGameGlossary', {
+    payload: ByGame,
+    success: GameGlossary,
+    error: TranslationError,
+  }),
+  Rpc.make('saveGameGlossaryEntry', {
+    payload: { ...ByGame, id: Schema.optional(Schema.String), entry: GlossaryEntryInput },
+    success: GameGlossary,
+    error: TranslationError,
+  }),
+  Rpc.make('removeGameGlossaryEntry', {
+    payload: { ...ByGame, id: Schema.String },
+    success: GameGlossary,
+    error: TranslationError,
   }),
 ) {}

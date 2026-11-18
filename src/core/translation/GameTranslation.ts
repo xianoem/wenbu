@@ -1,6 +1,7 @@
 import { Effect } from 'effect'
 import { GameTranslationRpc } from '#contract/GameTranslation'
 import { makeExportTranslation } from './ExportTranslation'
+import { makeGameGlossary } from './GameGlossaryFlow'
 import { makeGameUpdateFlow } from './GameUpdateFlow'
 import { makeLineReview } from './LineReview'
 import { makeTranslationRuns } from './TranslationRuns'
@@ -9,8 +10,9 @@ import { makeTranslationShared } from './TranslationShared'
 export const GameTranslationLive = GameTranslationRpc.toLayer(
   Effect.gen(function* () {
     const shared = yield* makeTranslationShared
-    const runs = yield* makeTranslationRuns(shared)
-    const review = makeLineReview(shared)
+    const glossary = yield* makeGameGlossary(shared)
+    const runs = yield* makeTranslationRuns(shared, glossary)
+    const review = makeLineReview(shared, glossary)
     const updates = yield* makeGameUpdateFlow(shared)
     const exportTranslation = makeExportTranslation(shared)
 
@@ -46,6 +48,11 @@ export const GameTranslationLive = GameTranslationRpc.toLayer(
       removeTranslation: ({ gameId }) => runs.remove(gameId),
       listTranslationRuns: ({ gameId }) => runs.listRuns(gameId),
       watchTranslation: ({ gameId }) => runs.watch(gameId),
+      getGameGlossary: ({ gameId }) => glossary.get(gameId),
+      setGameGlossaryEnabled: ({ gameId, enabled }) => glossary.setEnabled(gameId, enabled),
+      prepareGameGlossary: ({ gameId }) => glossary.prepare(gameId),
+      saveGameGlossaryEntry: ({ gameId, id, entry }) => glossary.saveEntry(gameId, id, entry),
+      removeGameGlossaryEntry: ({ gameId, id }) => glossary.removeEntry(gameId, id),
     })
   }),
 )

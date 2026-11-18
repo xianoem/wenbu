@@ -77,11 +77,22 @@ function ScopeOption({
 
 function Breakdown({ estimate }: { readonly estimate: TranslationEstimate }) {
   const price = estimate.price
+  const glossary = estimate.glossary?.enabled === true ? estimate.glossary : undefined
 
   const rows = [
-    ['Input · the text and Wenbu’s instructions', estimate.inputTokens, price?.input],
+    [
+      glossary === undefined
+        ? 'Input · the text and Wenbu’s instructions'
+        : 'Input · the text, Wenbu’s instructions and the glossary',
+      estimate.inputTokens,
+      price?.input,
+    ],
     ['Output · about 1.3× the text', estimate.outputTokens, price?.output],
   ] as const
+
+  const prepare = glossary === undefined || glossary.prepared ? undefined : glossary.prepare
+  const prepareTokens = prepare === undefined ? 0 : prepare.inputTokens + prepare.outputTokens
+  const prepareUsd = prepare?.costUsd ?? 0
 
   return (
     <div className="grid grid-cols-[1fr_auto_auto] gap-x-5 gap-y-1.5 text-[13px]">
@@ -94,14 +105,21 @@ function Breakdown({ estimate }: { readonly estimate: TranslationEstimate }) {
           </span>
         </div>
       ))}
+      {prepare === undefined ? null : (
+        <div className="contents">
+          <span className="text-muted-foreground">Prepare the game glossary · once</span>
+          <span className="text-right">{formatTokens(prepareTokens)}</span>
+          <span className="text-right">{formatUsd(prepareUsd)}</span>
+        </div>
+      )}
       <span className="border-t pt-1.5 font-semibold">About</span>
       <span className="border-t pt-1.5 text-right font-semibold">
-        {formatTokens(estimate.inputTokens + estimate.outputTokens)} tokens
+        {formatTokens(estimate.inputTokens + estimate.outputTokens + prepareTokens)} tokens
       </span>
       <span className="border-t pt-1.5 text-right font-semibold">
         {estimate.costUsd === undefined
           ? 'No price'
-          : `${formatUsd(estimate.costUsd.low)} – ${formatUsd(estimate.costUsd.high)}`}
+          : `${formatUsd(estimate.costUsd.low + prepareUsd)} – ${formatUsd(estimate.costUsd.high + prepareUsd)}`}
       </span>
     </div>
   )

@@ -210,6 +210,8 @@ export class Games extends Context.Service<
               yield* sql`DELETE FROM game_work_links WHERE game_id = ${id}`
               yield* sql`DELETE FROM game_detail_edits WHERE game_id = ${id}`
               yield* sql`DELETE FROM game_detail_finds WHERE game_id = ${id}`
+              yield* sql`DELETE FROM game_glossary_entries WHERE game_id = ${id}`
+              yield* sql`DELETE FROM game_glossaries WHERE game_id = ${id}`
               yield* sql`DELETE FROM games WHERE id = ${id}`
             }),
           ),

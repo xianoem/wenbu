@@ -59,6 +59,7 @@ import {
   formatMoment,
   formatTokens,
   formatUsd,
+  gameGlossaryAtom,
   gamesAtom,
   latestRunAtom,
   libraryKeys,
@@ -74,6 +75,7 @@ import { gameUpdateAtom } from '../../translation/translationLines'
 import { OutsideChangesNotice } from '../../translation/OutsideChangesNotice'
 import { UpdateNotice } from '../../translation/UpdateNotice'
 import { SpendMeter } from './SpendMeter'
+import { GameGlossaryRow } from './GameGlossaryRow'
 import { TranslateDialog } from './TranslateDialog'
 import { TranslationEstimate } from './TranslationEstimate'
 import { DialogueWrapRow } from '../../ingametext/DialogueWrapRow'
@@ -81,6 +83,7 @@ import { DialogueWrapRow } from '../../ingametext/DialogueWrapRow'
 const stepTitles: Record<StepId, string> = {
   prepare: 'Save the original files',
   extract: 'Find the text',
+  glossary: 'Prepare the game glossary',
   translate: 'Translate',
   apply: 'Write to the game',
 }
@@ -332,6 +335,7 @@ export function TranslationPanel({
   const refreshChanged = useAtomRefresh(changedAtom)
   const updateResult = useAtomValue(gameUpdateAtom(game.id))
   const refreshUpdate = useAtomRefresh(gameUpdateAtom(game.id))
+  const refreshGlossary = useAtomRefresh(gameGlossaryAtom(game.id))
   const [error, setError] = useState<string | undefined>(undefined)
   const [outsideChanges, setOutsideChanges] = useState<string | undefined>(undefined)
   const [space, setSpace] = useState<SpaceShortfall | undefined>(undefined)
@@ -350,6 +354,7 @@ export function TranslationPanel({
       refreshMissing()
       refreshChanged()
       refreshUpdate()
+      refreshGlossary()
     }
   })
 
@@ -462,6 +467,13 @@ export function TranslationPanel({
           onTranslate={() => void translate('changed', settings?.spendLimit)}
         />
       ) : null}
+
+      <GameGlossaryRow
+        gameId={game.id}
+        title={game.title}
+        estimate={missing?.glossary}
+        disabled={running}
+      />
 
       {!running &&
       update?.active !== true &&

@@ -825,6 +825,34 @@ const migrations = SqliteMigrator.fromRecord({
       )
     `
   }),
+  '0031_game_glossaries': Effect.gen(function* () {
+    const sql = yield* SqlClient.SqlClient
+
+    yield* sql`
+      CREATE TABLE game_glossaries (
+        game_id TEXT PRIMARY KEY REFERENCES games(id),
+        enabled INTEGER NOT NULL DEFAULT 0,
+        prepared_at TEXT,
+        cost_usd REAL
+      )
+    `
+
+    yield* sql`
+      CREATE TABLE game_glossary_entries (
+        id TEXT PRIMARY KEY,
+        game_id TEXT NOT NULL REFERENCES games(id),
+        position INTEGER NOT NULL,
+        kind TEXT NOT NULL,
+        original TEXT NOT NULL,
+        translation TEXT NOT NULL,
+        note TEXT NOT NULL,
+        speakers TEXT NOT NULL,
+        lines INTEGER NOT NULL
+      )
+    `
+
+    yield* sql`CREATE INDEX game_glossary_entries_by_game ON game_glossary_entries (game_id, position)`
+  }),
 })
 
 export const layer = (filename: string) =>

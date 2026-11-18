@@ -37,6 +37,12 @@ export const systemPrompt = 'You are a careful RPG Maker localization assistant.
 
 const encodeJson = Schema.encodeEffect(Schema.fromJsonString(Schema.Unknown))
 
+export const instructionsOf = (settings: TranslationSettings) => [
+  `Detect the language of the game text, then translate it into ${settings.targetLanguage}.`,
+  'Return only a JSON object whose keys are the given numbers and whose values are the translated strings.',
+  'Keep RPG Maker control codes (like \\C[2] or \\N[1]), placeholders (like %1) and line breaks.',
+]
+
 export const batchPrompt = Effect.fnUntraced(function* (
   settings: TranslationSettings,
   batch: ReadonlyArray<TranslationItem>,
@@ -45,13 +51,11 @@ export const batchPrompt = Effect.fnUntraced(function* (
     batch.map((item, index) => [String(index + 1), { text: item.src, context: item.context }]),
   )
 
-  return [
-    `Detect the language of the game text, then translate it into ${settings.targetLanguage}.`,
-    'Return only a JSON object whose keys are the given numbers and whose values are the translated strings.',
-    'Keep RPG Maker control codes (like \\C[2] or \\N[1]), placeholders (like %1) and line breaks.',
-    yield* Effect.orDie(encodeJson(items)),
-  ].join('\n\n')
+  return [...instructionsOf(settings), yield* Effect.orDie(encodeJson(items))].join('\n\n')
 })
+
+export const fencedJson = (reply: string) =>
+  (/```(?:json)?\s*([\s\S]*?)```/.exec(reply)?.[1] ?? reply).trim()
 
 const decodeReply = Schema.decodeUnknownEffect(
   Schema.fromJsonString(Schema.Record(Schema.String, Schema.Unknown)),
@@ -64,8 +68,7 @@ export const parseReply = Effect.fnUntraced(function* (
   batch: ReadonlyArray<TranslationItem>,
   settings: TranslationSettings,
 ) {
-  const fenced = /```(?:json)?\s*([\s\S]*?)```/.exec(reply)?.[1] ?? reply
-  const values = yield* decodeReply(fenced.trim())
+  const values = yield* decodeReply(fencedJson(reply))
   const translations = new Map<string, string>()
 
   for (const [index, item] of batch.entries()) {

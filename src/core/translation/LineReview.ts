@@ -9,6 +9,7 @@ import type { Game } from '#contract/Library'
 import { characterBudget, type Fit, fitOf } from '#contract/TextFit'
 import type { TranslationItem } from '../rpgmaker/TextEntries'
 import { batchPrompt, parseReply, systemPrompt } from './Batches'
+import type { GameGlossaryFlow } from './GameGlossaryFlow'
 import { encodeJson, failed, readableError, type TranslationShared } from './TranslationShared'
 
 const everyLine = 1_000_000_000
@@ -52,7 +53,7 @@ const unlocked = (line: TranslationLine, action: string) =>
       )
     : Effect.void
 
-export const makeLineReview = (shared: TranslationShared) => {
+export const makeLineReview = (shared: TranslationShared, glossary: GameGlossaryFlow) => {
   const { lines, llm, gameOf, getSettings, describePreset, ensureLines, lineOf } = shared
 
   const listLines = Effect.fn('GameTranslation.listLines')(function* (request: {
@@ -92,7 +93,7 @@ export const makeLineReview = (shared: TranslationShared) => {
   const askForLine = Effect.fnUntraced(function* (
     gameId: string,
     item: TranslationItem,
-    prompt: (settings: TranslationSettings) => Effect.Effect<string>,
+    prompt: (settings: TranslationSettings) => Effect.Effect<string, TranslationError>,
     noAnswer: string,
   ) {
     const settings = yield* getSettings
@@ -200,6 +201,7 @@ export const makeLineReview = (shared: TranslationShared) => {
     gameId: string,
     entryId: string,
   ) {
+    const game = yield* gameOf(gameId)
     const line = yield* lineOf(gameId, entryId)
 
     yield* unlocked(line, 'translate it again')
@@ -209,7 +211,10 @@ export const makeLineReview = (shared: TranslationShared) => {
     return yield* askForLine(
       gameId,
       item,
-      (settings) => batchPrompt(settings, [item]),
+      (settings) =>
+        Effect.flatMap(glossary.linePrompt(game, settings, item), (prompt) =>
+          prompt === undefined ? batchPrompt(settings, [item]) : Effect.succeed(prompt),
+        ),
       'The model gave no translation for this line. Try again.',
     )
   })

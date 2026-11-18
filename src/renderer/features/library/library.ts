@@ -61,6 +61,20 @@ export const translationEstimateAtom = Atom.family((key: `${TranslationScope}:${
   )
 })
 
+export const glossaryKeys = ['game-glossary']
+
+export const gameGlossaryAtom = Atom.family((gameId: string) =>
+  Core.query('getGameGlossary', { gameId }, { reactivityKeys: glossaryKeys }),
+)
+
+export const setGameGlossaryEnabledAtom = Core.mutation('setGameGlossaryEnabled')
+
+export const prepareGameGlossaryAtom = Core.mutation('prepareGameGlossary')
+
+export const saveGameGlossaryEntryAtom = Core.mutation('saveGameGlossaryEntry')
+
+export const removeGameGlossaryEntryAtom = Core.mutation('removeGameGlossaryEntry')
+
 export const latestRunAtom = Atom.family((gameId: string) =>
   Core.runtime.atom(
     Stream.unwrap(

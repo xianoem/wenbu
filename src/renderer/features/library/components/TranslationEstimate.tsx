@@ -4,6 +4,7 @@ import type {
   TranslationEstimate as Estimate,
   TranslationSettings,
 } from '#contract/GameTranslation'
+import { extraText } from '../glossaryText'
 import { formatTokens, formatUsd, limitValue, saveTranslationSettingsAtom } from '../library'
 import { SpendLimitField } from './SpendLimitField'
 
@@ -54,7 +55,11 @@ export function TranslationEstimate({
         <EstimateBox
           label="Cost, about"
           value={formatUsd(estimate.costUsd.low)}
-          detail={`up to ${formatUsd(estimate.costUsd.high)} with retries`}
+          detail={
+            estimate.glossary?.enabled === true
+              ? `glossary adds ${extraText(estimate.glossary)}`
+              : `up to ${formatUsd(estimate.costUsd.high)} with retries`
+          }
         />
       )}
       <div className="flex flex-col rounded-2xl bg-muted px-3.5 py-2.5">

@@ -4,6 +4,7 @@ import {
   modeValues,
   type RunStatus,
   type SpendLimit,
+  glossaryStepIds,
   type StepId,
   stepIds,
   TranslationError,
@@ -22,7 +23,8 @@ import {
   type TranslationItem,
 } from '../rpgmaker/TextEntries'
 import { batchesOf, batchPrompt, parseReply, systemPrompt } from './Batches'
-import { batchTokens, costOf, estimateCost } from './CostEstimate'
+import { batchTokens, costOf, estimateCost, type PromptOf } from './CostEstimate'
+import type { GameGlossaryFlow, PreparationUsage } from './GameGlossaryFlow'
 import { diffSources, pendingOf } from './SourceDiff'
 import { makeLedger, type Spend, type SpendLedger } from './SpendLimit'
 import { appliedTranslations } from './TranslationLines'
@@ -112,7 +114,10 @@ const withStep = (run: TranslationRun, id: StepId, patch: Partial<TranslationSte
     steps: run.steps.map((step) => (step.id === id ? { ...step, ...patch } : step)),
   })
 
-export const makeTranslationRuns = Effect.fnUntraced(function* (shared: TranslationShared) {
+export const makeTranslationRuns = Effect.fnUntraced(function* (
+  shared: TranslationShared,
+  glossary: GameGlossaryFlow,
+) {
   const {
     sql,
     games,
@@ -199,6 +204,7 @@ export const makeTranslationRuns = Effect.fnUntraced(function* (shared: Translat
     keptLines: number,
     ledger: SpendLedger,
     price: ModelPrice | undefined,
+    promptOf: PromptOf,
   ) {
     const translations = new Map<string, string>()
     const errors = new Map<string, number>()
@@ -228,7 +234,7 @@ export const makeTranslationRuns = Effect.fnUntraced(function* (shared: Translat
             feature: 'rpg-translation',
             gameId,
             system: systemPrompt,
-            prompt: yield* batchPrompt(settings, batch),
+            prompt: yield* promptOf(batch),
             timeout: `${settings.timeoutSeconds} seconds`,
           })
 
@@ -309,7 +315,7 @@ export const makeTranslationRuns = Effect.fnUntraced(function* (shared: Translat
         batches,
         (batch) =>
           Effect.gen(function* () {
-            const tokens = yield* batchTokens(settings, batch)
+            const tokens = yield* batchTokens(settings, batch, promptOf)
             const estimate = spendOf(price, tokens.input, tokens.output)
 
             if (!(yield* ledger.reserve(estimate))) {
@@ -333,12 +339,70 @@ export const makeTranslationRuns = Effect.fnUntraced(function* (shared: Translat
     return { notes: errorNotes(errors), translatedLines, stopped: yield* ledger.stopped }
   })
 
+  const addUsage = (gameId: string, usage: PreparationUsage) =>
+    update(gameId, (run) =>
+      TranslationRun.make({
+        ...run,
+        usage: {
+          inputTokens: run.usage.inputTokens + usage.inputTokens,
+          outputTokens: run.usage.outputTokens + usage.outputTokens,
+          ...(usage.costUsd === undefined && run.usage.costUsd === undefined
+            ? {}
+            : { costUsd: (run.usage.costUsd ?? 0) + (usage.costUsd ?? 0) }),
+        },
+      }),
+    )
+
+  const usageSpend = (usage: PreparationUsage): Spend => ({
+    usd: usage.costUsd ?? 0,
+    tokens: usage.inputTokens + usage.outputTokens,
+  })
+
+  const glossaryRun = Effect.fnUntraced(function* (
+    game: Game,
+    settings: TranslationSettings,
+    entries: ReadonlyArray<TextEntry>,
+    items: ReadonlyArray<TranslationItem>,
+    ledger: SpendLedger,
+    price: ModelPrice | undefined,
+  ) {
+    yield* update(game.id, (run) => withStep(run, 'glossary', { status: 'running' }))
+
+    const found = yield* glossary.forRun(
+      game,
+      settings,
+      entries,
+      items,
+      price,
+      (estimate) => ledger.reserve(usageSpend(estimate)),
+      (estimate, actual) => ledger.settle(usageSpend(estimate), usageSpend(actual)),
+    )
+
+    if (found.prepared !== undefined) {
+      yield* addUsage(game.id, found.prepared)
+    }
+
+    const characters = found.glossary.filter((entry) => entry.kind === 'character').length
+    const terms = found.glossary.length - characters
+    const contents = `${count(characters, 'character')} and ${count(terms, 'term')}`
+
+    yield* update(game.id, (run) =>
+      withStep(run, 'glossary', {
+        status: 'done',
+        summary: found.prepared === undefined ? `Using ${contents}` : `Prepared ${contents}`,
+      }),
+    )
+
+    return found.run
+  })
+
   const runWorkflow = Effect.fnUntraced(function* (
     game: Game,
     settings: TranslationSettings,
     scope: TranslationScope,
     ledger: SpendLedger,
     price: ModelPrice | undefined,
+    glossaryOn: boolean,
   ) {
     const step = (id: StepId, patch: Partial<TranslationStep>) =>
       update(game.id, (run) => withStep(run, id, patch))
@@ -401,16 +465,21 @@ export const makeTranslationRuns = Effect.fnUntraced(function* (shared: Translat
 
     const keptLines = prepared.entries.filter((entry) => translatedBefore.has(entry.id)).length
 
+    const sending = glossaryOn
+      ? yield* glossaryRun(game, settings, prepared.entries, items, ledger, price)
+      : { items, promptOf: (batch: ReadonlyArray<TranslationItem>) => batchPrompt(settings, batch) }
+
     yield* step('translate', { status: 'running' })
 
     const translated = yield* translate(
       game.id,
       settings,
       prepared.entries,
-      items,
+      sending.items,
       keptLines,
       ledger,
       price,
+      sending.promptOf,
     )
 
     const untranslated = prepared.entries.length - translated.translatedLines
@@ -603,10 +672,25 @@ export const makeTranslationRuns = Effect.fnUntraced(function* (shared: Translat
 
     const cost = yield* estimateCost(settings, items, preset.price)
 
+    // A failing glossary estimate must not take away the estimate the panel shows today.
+    const withGlossary = yield* glossary
+      .estimate(game, settings, prepared.entries, items, preset.price, cost)
+      .pipe(
+        Effect.tapError((error) =>
+          Effect.logWarning('Game glossary estimate failed').pipe(
+            Effect.annotateLogs({ game: gameId, error: error.message }),
+          ),
+        ),
+        Effect.option,
+      )
+
+    const glossaryOn = Option.exists(withGlossary, (found) => found.summary.enabled)
+
     return {
       scope,
-      ...cost,
+      ...(glossaryOn && Option.isSome(withGlossary) ? withGlossary.value.withGlossary : cost),
       ...(preset.price === undefined ? {} : { price: preset.price }),
+      ...(Option.isSome(withGlossary) ? { glossary: withGlossary.value.summary } : {}),
     }
   })
 
@@ -655,6 +739,14 @@ export const makeTranslationRuns = Effect.fnUntraced(function* (shared: Translat
     yield* ensureSameLanguage(gameId, settings.targetLanguage)
     yield* ensureUnchanged(game)
 
+    if (yield* glossary.isPreparing(gameId)) {
+      return yield* new TranslationError({
+        reason: 'conflict',
+        message: 'Wait for the glossary to finish preparing.',
+      })
+    }
+
+    const glossaryOn = yield* glossary.isEnabled(gameId)
     const limit = spendLimit ?? settings.spendLimit
     const ledger = yield* makeLedger(limit, preset.price !== undefined)
 
@@ -675,7 +767,11 @@ export const makeTranslationRuns = Effect.fnUntraced(function* (shared: Translat
       ...(limit === undefined ? {} : { spendLimit: limit }),
       lines: { total: 0, translated: 0, written: 0 },
       usage: { inputTokens: 0, outputTokens: 0 },
-      steps: stepIds.map((id) => ({ id, status: 'pending' as const, notes: [] })),
+      steps: (glossaryOn ? glossaryStepIds : stepIds).map((id) => ({
+        id,
+        status: 'pending' as const,
+        notes: [],
+      })),
     })
 
     yield* save(run)
@@ -691,7 +787,7 @@ export const makeTranslationRuns = Effect.fnUntraced(function* (shared: Translat
       }),
     )
 
-    const workflow = runWorkflow(game, settings, scope, ledger, preset.price).pipe(
+    const workflow = runWorkflow(game, settings, scope, ledger, preset.price, glossaryOn).pipe(
       Effect.ensuring(Effect.sync(() => ledgers.delete(gameId))),
       Effect.mapError((error) => asTranslationError(error)),
       Effect.onExit((exit) => finish(gameId, exit)),

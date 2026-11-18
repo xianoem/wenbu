@@ -161,7 +161,7 @@ const systemLocations = (file: string, data: RpgData, config: DatabaseFile) => {
   ]
 }
 
-const commandParameters = (command: RpgData | undefined) => {
+export const commandParameters = (command: RpgData | undefined) => {
   if (!isDataObject(command)) {
     return undefined
   }
@@ -277,6 +277,65 @@ const pagesOf = (owner: RpgData) => {
   return entriesOf(isDataArray(pages) ? pages : undefined)
 }
 
+export interface EventList {
+  readonly list: RpgData | undefined
+  readonly base: ReadonlyArray<string | number>
+  readonly context: string
+  readonly place: CoverageKey
+}
+
+const listOf = (owner: RpgData) => (isDataObject(owner) ? owner['list'] : undefined)
+
+// MV and MZ store map events in an array; VX Ace stores them in a hash keyed by event id.
+const mapEventLists = (file: string, data: RpgData): ReadonlyArray<EventList> =>
+  isDataObject(data)
+    ? entriesOf(data['events']).flatMap(([eventIndex, event]) =>
+        pagesOf(event).map(([pageIndex, page]) => ({
+          list: listOf(page),
+          base: ['events', eventIndex, 'pages', pageIndex, 'list'],
+          context: `${file} -> events[${eventIndex}] pages[${pageIndex}]`,
+          place: 'mapEvents',
+        })),
+      )
+    : []
+
+const troopEventLists = (file: string, data: RpgData): ReadonlyArray<EventList> =>
+  entriesOf(isDataArray(data) ? data : undefined).flatMap(([troopIndex, troop]) =>
+    pagesOf(troop).map(([pageIndex, page]) => ({
+      list: listOf(page),
+      base: [troopIndex, 'pages', pageIndex, 'list'],
+      context: `${file} -> [${troopIndex}] pages[${pageIndex}]`,
+      place: 'battleEvents',
+    })),
+  )
+
+const commonEventLists = (file: string, data: RpgData): ReadonlyArray<EventList> =>
+  entriesOf(isDataArray(data) ? data : undefined).map(([index, event]) => ({
+    list: listOf(event),
+    base: [index, 'list'],
+    context: `${file} -> [${index}]`,
+    place: 'commonEvents',
+  }))
+
+export const eventListsOf = (file: string, data: RpgData): ReadonlyArray<EventList> => {
+  const name = jsonName(file)
+
+  if (name === 'CommonEvents.json') {
+    return commonEventLists(file, data)
+  }
+
+  if (name === 'Troops.json') {
+    return troopEventLists(file, data)
+  }
+
+  return isMapFile(name) ? mapEventLists(file, data) : []
+}
+
+const eventListLocations = (file: string, lists: ReadonlyArray<EventList>) =>
+  lists.flatMap((events) =>
+    eventCommandLocations(events.list, file, events.base, events.context, events.place),
+  )
+
 const mapLocations = (file: string, data: RpgData) => {
   if (!isDataObject(data)) {
     return []
@@ -284,50 +343,19 @@ const mapLocations = (file: string, data: RpgData) => {
 
   const displayName = keyOf(data, 'displayName', 'display_name')
 
-  // MV and MZ store map events in an array; VX Ace stores them in a hash keyed by event id.
-  const events = entriesOf(data['events']).flatMap(([eventIndex, event]) =>
-    pagesOf(event).flatMap(([pageIndex, page]) =>
-      eventCommandLocations(
-        isDataObject(page) ? page['list'] : undefined,
-        file,
-        ['events', eventIndex, 'pages', pageIndex, 'list'],
-        `${file} -> events[${eventIndex}] pages[${pageIndex}]`,
-        'mapEvents',
-      ),
-    ),
-  )
-
   return [
     location(file, [displayName], `${file} -> ${displayName}`, data[displayName], [
       'mapDisplayNames',
     ]),
-    ...events,
+    ...eventListLocations(file, mapEventLists(file, data)),
   ]
 }
 
-const troopLocations = (file: string, data: RpgData, config: DatabaseFile) =>
-  entriesOf(isDataArray(data) ? data : undefined).flatMap(([troopIndex, troop]) =>
-    pagesOf(troop).flatMap(([pageIndex, page]) =>
-      eventCommandLocations(
-        isDataObject(page) ? page['list'] : undefined,
-        file,
-        [troopIndex, 'pages', pageIndex, 'list'],
-        `${file} -> [${troopIndex}] pages[${pageIndex}]`,
-        config.coverageKey,
-      ),
-    ),
-  )
+const troopLocations = (file: string, data: RpgData) =>
+  eventListLocations(file, troopEventLists(file, data))
 
 const commonEventLocations = (file: string, data: RpgData) =>
-  entriesOf(isDataArray(data) ? data : undefined).flatMap(([index, event]) =>
-    eventCommandLocations(
-      isDataObject(event) ? event['list'] : undefined,
-      file,
-      [index, 'list'],
-      `${file} -> [${index}]`,
-      'commonEvents',
-    ),
-  )
+  eventListLocations(file, commonEventLists(file, data))
 
 const specialLocations = {
   system: systemLocations,

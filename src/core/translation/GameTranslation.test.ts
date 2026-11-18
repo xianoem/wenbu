@@ -31,14 +31,21 @@ import { LlmSettingsError } from '#contract/Llm'
 import { Games } from '../library/Games'
 import { LibraryRpcLive } from '../library/Library'
 import { makeMvGame, mvMap, TestLauncher } from '../library/TestGames'
-import { LlmClient, LlmClientError, type PresetDescription } from '../llm/LlmClient'
+import {
+  type CompletionRequest,
+  LlmClient,
+  LlmClientError,
+  type PresetDescription,
+} from '../llm/LlmClient'
 import { PresetReferences } from '../llm/PresetReferences'
 import * as Database from '../platform/Database'
 import { DiskSpace } from '../platform/DiskSpace'
 import { GameData } from '../rpgmaker/GameData'
+import type { RpgData } from '../rpgmaker/RpgData'
 import { LogBook } from '../diagnostics/LogBook'
 import { GameTranslationLive } from './GameTranslation'
 import { GameFileHashes } from './GameFileHashes'
+import { preparationSystem } from './GlossaryPrompts'
 import { TranslationLines } from './TranslationLines'
 
 const Batch = Schema.fromJsonString(
@@ -56,6 +63,18 @@ const encodeReply = Schema.encodeEffect(
 const presets: Record<string, PresetDescription> = {
   'preset-1': { presetName: 'Dialogue', modelName: 'Fake 1', price: { input: 1, output: 2 } },
   'preset-free': { presetName: 'Local', modelName: 'Fake 2' },
+  'preset-unreported': { presetName: 'Quiet', modelName: 'Fake 3', price: { input: 1, output: 2 } },
+}
+
+const requests: Array<CompletionRequest> = []
+
+const requestsOf = (gameId: string) => requests.filter((request) => request.gameId === gameId)
+
+const preparedGlossary = {
+  characters: [
+    { original: 'リナ', english: 'Lina', voice: 'Bright and quick.', speakers: ['face:Actor1:0'] },
+  ],
+  terms: [{ original: '回復薬', english: 'Healing Draught', kind: 'item', note: '' }],
 }
 
 const LlmFake = Layer.succeed(LlmClient)({
@@ -66,6 +85,16 @@ const LlmFake = Layer.succeed(LlmClient)({
     ),
   complete: (request) =>
     Effect.gen(function* () {
+      requests.push(request)
+
+      if (request.system === preparationSystem) {
+        return {
+          text: yield* Effect.orDie(encodeJson(preparedGlossary)),
+          usage: { inputTokens: 1000, outputTokens: 200 },
+          costUsd: request.presetId === 'preset-unreported' ? undefined : 0.25,
+        }
+      }
+
       const batch = yield* Effect.orDie(decodeBatch(request.prompt.split('\n\n').at(-1) ?? ''))
       const texts = Object.values(batch).map((item) => item.text)
 
@@ -99,7 +128,7 @@ const LlmFake = Layer.succeed(LlmClient)({
       return {
         text: `\`\`\`json\n${yield* Effect.orDie(encodeReply(reply))}\n\`\`\``,
         usage: { inputTokens: 100, outputTokens: 20 },
-        costUsd: 0.5,
+        costUsd: request.presetId === 'preset-unreported' ? undefined : 0.5,
       }
     }),
 })
@@ -1600,5 +1629,308 @@ describe('GameTranslation', () => {
       expect(logText).not.toContain('SECRET')
       expect(logText).not.toContain('EN:')
     }).pipe(Effect.scoped, Effect.provide(NodeServices.layer)),
+  )
+})
+
+const speakingGame = Effect.fnUntraced(function* (folder: string) {
+  const fs = yield* FileSystem.FileSystem
+  const path = yield* Path.Path
+  const data = path.join(folder, 'www', 'data')
+
+  const write = (name: string, value: RpgData) =>
+    Effect.flatMap(encodeJson(value), (text) => fs.writeFileString(path.join(data, name), text))
+
+  yield* write('Actors.json', [
+    null,
+    { id: 1, name: 'リナ', nickname: '', profile: '', faceName: 'Actor1', faceIndex: 0 },
+  ])
+
+  yield* write('Items.json', [null, { id: 1, name: '回復薬', description: '' }])
+
+  yield* write('Map001.json', {
+    displayName: '',
+    events: [
+      null,
+      {
+        pages: [
+          {
+            list: [
+              { code: 101, parameters: ['Actor1', 0, 0, 2] },
+              { code: 401, parameters: ['回復薬をちょうだい'] },
+              { code: 101, parameters: ['', 0, 0, 2] },
+              { code: 401, parameters: ['こんにちは'] },
+            ],
+          },
+        ],
+      },
+    ],
+  })
+})
+
+const todaysRequest = (items: string) =>
+  [
+    'Detect the language of the game text, then translate it into English.',
+    'Return only a JSON object whose keys are the given numbers and whose values are the translated strings.',
+    'Keep RPG Maker control codes (like \\C[2] or \\N[1]), placeholders (like %1) and line breaks.',
+    items,
+  ].join('\n\n')
+
+const showText = 'Map001.json -> events[1] pages[0] -> Show Text'
+
+const todaysRequests = [
+  todaysRequest('{"1":{"text":"G","context":"System.json -> currencyUnit"}}'),
+  todaysRequest(`{"1":{"text":"こんにちは","context":"${showText}"}}`),
+  todaysRequest('{"1":{"text":"リナ","context":"Actors.json -> [1].name"}}'),
+  todaysRequest('{"1":{"text":"回復薬","context":"Items.json -> [1].name"}}'),
+  todaysRequest(`{"1":{"text":"回復薬をちょうだい","context":"${showText}"}}`),
+  todaysRequest('{"1":{"text":"魔法の森","context":"System.json -> gameTitle"}}'),
+]
+
+const translationRequests = (gameId: string) =>
+  requestsOf(gameId).filter((request) => request.system !== preparationSystem)
+
+const preparationRequests = (gameId: string) =>
+  requestsOf(gameId).filter((request) => request.system === preparationSystem)
+
+const promptFor = (gameId: string, text: string) =>
+  translationRequests(gameId).find((request) =>
+    request.prompt.split('\n\n').at(-1)?.includes(`"text":"${text}"`),
+  )?.prompt
+
+describe('Game glossary', () => {
+  it.live('sends exactly the requests of before while the game glossary is off', () =>
+    Effect.gen(function* () {
+      const { translation, game, folder, finished } = yield* setup([])
+
+      yield* speakingGame(folder)
+      yield* translation.startTranslation({ gameId: game.id })
+
+      const run = yield* finished
+      const sent = requestsOf(game.id)
+
+      expect(run.steps.map((step) => step.id)).toEqual(['prepare', 'extract', 'translate', 'apply'])
+
+      expect(sent.map((request) => request.system)).toEqual(
+        todaysRequests.map(() => 'You are a careful RPG Maker localization assistant.'),
+      )
+
+      expect(sent.map((request) => request.prompt).toSorted()).toEqual(todaysRequests)
+    }).pipe(Effect.scoped, Effect.provide(TestLayer)),
+  )
+
+  it.live('ignores a prepared glossary once it is turned off', () =>
+    Effect.gen(function* () {
+      const { translation, game, folder, finished } = yield* setup([])
+
+      yield* speakingGame(folder)
+      yield* translation.setGameGlossaryEnabled({ gameId: game.id, enabled: true })
+      yield* translation.prepareGameGlossary({ gameId: game.id })
+      yield* translation.setGameGlossaryEnabled({ gameId: game.id, enabled: false })
+      yield* translation.startTranslation({ gameId: game.id })
+      yield* finished
+
+      expect(
+        translationRequests(game.id)
+          .map((request) => request.prompt)
+          .toSorted(),
+      ).toEqual(todaysRequests)
+    }).pipe(Effect.scoped, Effect.provide(TestLayer)),
+  )
+
+  it.live('prepares the glossary in the first run and sends speakers and entries', () =>
+    Effect.gen(function* () {
+      const { translation, game, folder, finished } = yield* setup([])
+
+      yield* speakingGame(folder)
+      yield* translation.setGameGlossaryEnabled({ gameId: game.id, enabled: true })
+      yield* translation.startTranslation({ gameId: game.id })
+
+      const run = yield* finished
+
+      expect(run.steps.map((step) => [step.id, step.status])).toEqual([
+        ['prepare', 'done'],
+        ['extract', 'done'],
+        ['glossary', 'done'],
+        ['translate', 'done'],
+        ['apply', 'done'],
+      ])
+
+      expect(run.steps[2]?.summary).toBe('Prepared 1 character and 1 term')
+      expect(preparationRequests(game.id)).toHaveLength(1)
+      expect(preparationRequests(game.id)[0]?.prompt).toContain('"face:Actor1:0":{"lines":1')
+      expect(run.usage).toEqual({ inputTokens: 1600, outputTokens: 320, costUsd: 3.25 })
+
+      const asked = promptFor(game.id, '回復薬をちょうだい')?.split('\n\n') ?? []
+
+      expect(asked.at(-2)).toBe(
+        '{"characters":[{"name":"リナ","english":"Lina","voice":"Bright and quick."}],"terms":[{"original":"回復薬","english":"Healing Draught"}]}',
+      )
+
+      expect(asked.at(-1)).toBe(
+        `{"1":{"text":"回復薬をちょうだい","context":"${showText}","speaker":"Lina"}}`,
+      )
+
+      expect(promptFor(game.id, 'こんにちは')).toBe(todaysRequests[1])
+
+      const glossary = yield* translation.getGameGlossary({ gameId: game.id })
+
+      expect(glossary).toMatchObject({ enabled: true, costUsd: 0.25 })
+      expect(glossary.preparedAt).toBeDefined()
+
+      expect(glossary.entries.map((entry) => [entry.kind, entry.translation, entry.lines])).toEqual(
+        [
+          ['character', 'Lina', 2],
+          ['item', 'Healing Draught', 2],
+        ],
+      )
+    }).pipe(Effect.scoped, Effect.provide(TestLayer)),
+  )
+
+  it.live('uses the glossary as edited and does not prepare it again', () =>
+    Effect.gen(function* () {
+      const { translation, game, folder, finished } = yield* setup([])
+
+      yield* speakingGame(folder)
+      yield* translation.setGameGlossaryEnabled({ gameId: game.id, enabled: true })
+
+      const prepared = yield* translation.prepareGameGlossary({ gameId: game.id })
+      const [lina, potion] = prepared.entries
+
+      yield* translation.saveGameGlossaryEntry({
+        gameId: game.id,
+        id: lina?.id,
+        entry: { kind: 'character', original: 'リナ', translation: 'Rina', note: 'Shy.' },
+      })
+
+      yield* translation.removeGameGlossaryEntry({ gameId: game.id, id: potion?.id ?? '' })
+
+      const added = yield* translation.saveGameGlossaryEntry({
+        gameId: game.id,
+        entry: { kind: 'place', original: '魔法の森', translation: 'Magic Forest', note: '' },
+      })
+
+      const missing = yield* Effect.flip(
+        translation.saveGameGlossaryEntry({
+          gameId: game.id,
+          entry: { kind: 'place', original: '森', translation: ' ', note: '' },
+        }),
+      )
+
+      expect(missing).toMatchObject({ reason: 'invalid', field: 'translation' })
+
+      const twice = yield* Effect.flip(
+        translation.saveGameGlossaryEntry({
+          gameId: game.id,
+          entry: { kind: 'other', original: '魔法の森', translation: 'Forest', note: '' },
+        }),
+      )
+
+      expect(twice).toMatchObject({ reason: 'invalid', field: 'original' })
+
+      expect(
+        added.entries.map((entry) => [entry.translation, entry.speakers, entry.lines]),
+      ).toEqual([
+        ['Rina', ['face:Actor1:0'], 2],
+        ['Magic Forest', [], 1],
+      ])
+
+      yield* translation.startTranslation({ gameId: game.id })
+
+      const run = yield* finished
+
+      expect(run.steps.find((step) => step.id === 'glossary')?.summary).toBe(
+        'Using 1 character and 1 term',
+      )
+
+      expect(preparationRequests(game.id)).toHaveLength(1)
+
+      const asked = promptFor(game.id, '回復薬をちょうだい') ?? ''
+
+      expect(asked).toContain('{"characters":[{"name":"リナ","english":"Rina","voice":"Shy."}]}')
+      expect(asked).toContain('"speaker":"Rina"')
+      expect(asked).not.toContain('Healing Draught')
+    }).pipe(Effect.scoped, Effect.provide(TestLayer)),
+  )
+
+  it.live('estimates the glossary from the preset price, on and off', () =>
+    Effect.gen(function* () {
+      const { translation, game, folder } = yield* setup([])
+
+      yield* speakingGame(folder)
+
+      const off = yield* translation.estimateTranslation({ gameId: game.id })
+
+      yield* translation.setGameGlossaryEnabled({ gameId: game.id, enabled: true })
+
+      const on = yield* translation.estimateTranslation({ gameId: game.id })
+
+      yield* translation.saveTranslationSettings({ ...settings, presetId: 'preset-free' })
+
+      const priceless = yield* translation.estimateTranslation({ gameId: game.id })
+
+      yield* translation.saveTranslationSettings(settings)
+      yield* translation.setGameGlossaryEnabled({ gameId: game.id, enabled: false })
+
+      expect(yield* translation.estimateTranslation({ gameId: game.id })).toEqual(off)
+
+      const glossary = off.glossary
+
+      assert(glossary !== undefined)
+      expect(glossary).toMatchObject({ enabled: false, prepared: false })
+      expect(glossary.baseCostUsd).toBe(off.costUsd?.low)
+      expect(glossary.prepare.inputTokens).toBeGreaterThan(0)
+      expect(glossary.prepare.outputTokens).toBeGreaterThan(0)
+
+      expect(glossary.prepare.costUsd).toBeCloseTo(
+        (glossary.prepare.inputTokens * 1 + glossary.prepare.outputTokens * 2) / 1_000_000,
+      )
+
+      expect(glossary.extraInputTokens).toBeGreaterThan(0)
+      expect(glossary.extraCostUsd).toBeCloseTo(glossary.extraInputTokens / 1_000_000)
+
+      expect(on.glossary?.enabled).toBe(true)
+      expect(on.inputTokens).toBe(off.inputTokens + glossary.extraInputTokens)
+      expect(on.outputTokens).toBe(off.outputTokens)
+      expect(on.costUsd?.low).toBeCloseTo((off.costUsd?.low ?? 0) + (glossary.extraCostUsd ?? 0))
+
+      expect(priceless.glossary?.prepare.costUsd).toBeUndefined()
+      expect(priceless.glossary?.extraCostUsd).toBeUndefined()
+    }).pipe(Effect.scoped, Effect.provide(TestLayer)),
+  )
+
+  it.live('adds to the run only the cost the provider reports', () =>
+    Effect.gen(function* () {
+      const { translation, game, folder, finished } = yield* setup([])
+
+      yield* speakingGame(folder)
+      yield* translation.saveTranslationSettings({ ...settings, presetId: 'preset-unreported' })
+      yield* translation.setGameGlossaryEnabled({ gameId: game.id, enabled: true })
+      yield* translation.startTranslation({ gameId: game.id })
+
+      const run = yield* finished
+      const glossary = yield* translation.getGameGlossary({ gameId: game.id })
+
+      expect(run.usage).toEqual({ inputTokens: 1600, outputTokens: 320 })
+      expect(glossary.costUsd).toBeCloseTo((1000 * 1 + 200 * 2) / 1_000_000)
+    }).pipe(Effect.scoped, Effect.provide(TestLayer)),
+  )
+
+  it.live('counts nothing to prepare once the glossary is ready', () =>
+    Effect.gen(function* () {
+      const { translation, game, folder } = yield* setup([])
+
+      yield* speakingGame(folder)
+      yield* translation.setGameGlossaryEnabled({ gameId: game.id, enabled: true })
+      yield* translation.prepareGameGlossary({ gameId: game.id })
+
+      const estimate = yield* translation.estimateTranslation({ gameId: game.id })
+
+      expect(estimate.glossary).toMatchObject({
+        prepared: true,
+        prepare: { inputTokens: 0, outputTokens: 0, costUsd: 0 },
+      })
+
+      expect(estimate.glossary?.extraInputTokens).toBeGreaterThan(0)
+    }).pipe(Effect.scoped, Effect.provide(TestLayer)),
   )
 })
