@@ -1,4 +1,5 @@
 import { AppearanceRpc } from './Appearance'
+import { BackgroundRpc } from './Background'
 import { DashboardRpc } from './Dashboard'
 import { DetailsRpc } from './Details'
 import { DetectionsRpc } from './Detections'
@@ -23,6 +24,7 @@ import { TranslationOverlayRpc } from './TranslationOverlay'
 import { UpdatesRpc } from './Updates'
 
 export const WenbuRpc = AppearanceRpc.merge(
+  BackgroundRpc,
   LlmRpc,
   LibraryRpc,
   GameTranslationRpc,

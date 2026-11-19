@@ -1,4 +1,5 @@
 import { Schema } from 'effect'
+import { ActivityItem, AppTarget, BackgroundSettings } from './Background'
 import { LogEntry } from './Diagnostics'
 
 export const ClipboardImage = Schema.TaggedStruct('ClipboardImage', {
@@ -117,3 +118,60 @@ export type UpdateWatch = typeof UpdateWatch.Type
 export const UpdateInstall = Schema.TaggedStruct('UpdateInstall', {})
 
 export type UpdateInstall = typeof UpdateInstall.Type
+
+export const TrayState = Schema.TaggedStruct('TrayState', {
+  settings: BackgroundSettings,
+  watchImages: Schema.Boolean,
+  activity: Schema.Array(ActivityItem),
+})
+
+export type TrayState = typeof TrayState.Type
+
+export const TrayToggle = Schema.TaggedStruct('TrayToggle', {
+  listener: Schema.Literals(['images', 'links']),
+  on: Schema.Boolean,
+})
+
+export type TrayToggle = typeof TrayToggle.Type
+
+/** Main reads clipboard text only while link watching is on, or when the user asks. */
+export const ClipboardLink = Schema.TaggedStruct('ClipboardLink', {
+  url: Schema.String,
+  requested: Schema.Boolean,
+})
+
+export type ClipboardLink = typeof ClipboardLink.Type
+
+export const NoticeOpen = Schema.TaggedStruct('NoticeOpen', {
+  label: Schema.String,
+  target: AppTarget,
+})
+
+export const NoticeReveal = Schema.TaggedStruct('NoticeReveal', {
+  label: Schema.String,
+  path: Schema.String,
+})
+
+/** Core runs the action: main only reports which button was pressed. */
+export const NoticeReply = Schema.TaggedStruct('NoticeReply', { label: Schema.String })
+
+export const NoticeButton = Schema.Union([NoticeOpen, NoticeReveal, NoticeReply])
+
+export type NoticeButton = typeof NoticeButton.Type
+
+export const ShowNotice = Schema.TaggedStruct('ShowNotice', {
+  id: Schema.String,
+  title: Schema.String,
+  body: Schema.String,
+  target: Schema.optional(AppTarget),
+  buttons: Schema.Array(NoticeButton),
+})
+
+export type ShowNotice = typeof ShowNotice.Type
+
+export const NoticeReplied = Schema.TaggedStruct('NoticeReplied', {
+  id: Schema.String,
+  button: Schema.Int,
+})
+
+export type NoticeReplied = typeof NoticeReplied.Type

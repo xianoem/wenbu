@@ -33,6 +33,7 @@ export default defineConfig({
           overlay: resolve('src/renderer/overlay.html'),
           livecontrols: resolve('src/renderer/livecontrols.html'),
           subtitles: resolve('src/renderer/subtitles.html'),
+          tray: resolve('src/renderer/tray.html'),
         },
       },
     },

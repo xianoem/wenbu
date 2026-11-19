@@ -1,5 +1,7 @@
 import { Cause, Effect, Exit, FiberMap, Option, Schema, Stream, SubscriptionRef } from 'effect'
 import { SqlSchema } from 'effect/sql'
+import { OpenGame } from '#contract/Background'
+import { NoticeOpen } from '#contract/CoreMessages'
 import {
   modeValues,
   type RunStatus,
@@ -15,6 +17,7 @@ import {
 } from '#contract/GameTranslation'
 import { type Game, isTranslatable } from '#contract/Library'
 import type { ModelPrice } from '#contract/Llm'
+import { Background, type Notice } from '../background/Background'
 import type { ApplySkipReason } from '../rpgmaker/ApplyTranslations'
 import {
   prepareEntries,
@@ -114,6 +117,33 @@ const withStep = (run: TranslationRun, id: StepId, patch: Partial<TranslationSte
     steps: run.steps.map((step) => (step.id === id ? { ...step, ...patch } : step)),
   })
 
+const linesText = (count: number) => (count === 1 ? '1 line' : `${count} lines`)
+
+const runNotice = (run: TranslationRun, title: string): Notice => {
+  const target = OpenGame.make({ gameId: run.gameId })
+  const buttons = [NoticeOpen.make({ label: 'Open game', target })]
+
+  if (run.status === 'translated') {
+    const cost = run.usage.costUsd === undefined ? '' : ` · $${run.usage.costUsd.toFixed(2)}`
+
+    return {
+      kind: 'runs',
+      title: `${title} is translated`,
+      body: `${linesText(run.lines.translated)}${cost}`,
+      target,
+      buttons,
+    }
+  }
+
+  return {
+    kind: 'runs',
+    title: `Translating ${title} stopped`,
+    body: run.error ?? `${run.lines.translated} of ${linesText(run.lines.total)} translated`,
+    target,
+    buttons,
+  }
+}
+
 export const makeTranslationRuns = Effect.fnUntraced(function* (
   shared: TranslationShared,
   glossary: GameGlossaryFlow,
@@ -140,6 +170,8 @@ export const makeTranslationRuns = Effect.fnUntraced(function* (
   } = shared
 
   const ledgers = new Map<string, SpendLedger>()
+  const titles = new Map<string, string>()
+  const background = yield* Background
 
   const latest = yield* SubscriptionRef.make<ReadonlyMap<string, TranslationRun | undefined>>(
     new Map(),
@@ -182,6 +214,30 @@ export const makeTranslationRuns = Effect.fnUntraced(function* (
 
   const current = (gameId: string) =>
     Effect.map(SubscriptionRef.get(latest), (runs) => runs.get(gameId))
+
+  yield* SubscriptionRef.changes(latest).pipe(
+    Stream.runForEach((runs) =>
+      background.track(
+        'translation',
+        [...runs.values()]
+          .filter((run) => run?.status === 'running')
+          .flatMap((run) =>
+            run === undefined
+              ? []
+              : [
+                  {
+                    id: run.id,
+                    kind: 'translation' as const,
+                    title: titles.get(run.gameId) ?? 'a game',
+                    done: run.lines.translated,
+                    total: run.lines.total,
+                  },
+                ],
+          ),
+      ),
+    ),
+    Effect.forkScoped,
+  )
 
   for (const { run } of yield* Effect.orDie(unfinishedRuns())) {
     yield* save(
@@ -592,6 +648,10 @@ export const makeTranslationRuns = Effect.fnUntraced(function* (
         yield* save(run)
       }
 
+      if (run !== undefined && status !== 'cancelled') {
+        yield* background.notify(runNotice(run, titles.get(gameId) ?? 'The game'))
+      }
+
       const outcome = {
         game: gameId,
         status,
@@ -774,6 +834,7 @@ export const makeTranslationRuns = Effect.fnUntraced(function* (
       })),
     })
 
+    titles.set(gameId, game.title)
     yield* save(run)
     yield* publish(gameId, run)
 

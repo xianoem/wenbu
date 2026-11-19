@@ -5,18 +5,26 @@ import { Config, Effect, Layer, Option, Path, Queue, Schema, Stream } from 'effe
 import { KeyValueStore } from 'effect/persistence'
 import { FetchHttpClient } from 'effect/http'
 import { RpcServer } from 'effect/rpc'
+import type { ActivityItem } from '#contract/Background'
 import {
   ClipboardImage,
   type LiveControlsWindow,
   MainLogEntry,
+  NoticeReplied,
   OverlayBounds,
   type OverlayWindow,
+  type ShowNotice,
   SubtitleBounds,
   SubtitleLockToggle,
   type SubtitleWindow,
+  TrayState,
+  TrayToggle,
 } from '#contract/CoreMessages'
+import type { OverlayState, OverlayStatus } from '#contract/TranslationOverlay'
+import type { SubtitleState, SubtitleStatus } from '#contract/Subtitles'
 import { WenbuRpc } from '#contract/WenbuRpc'
 import { AppearanceLive } from './appearance/Appearance'
+import { Background, BackgroundRpcLive } from './background/Background'
 import { DashboardRpcLive } from './dashboard/Dashboard'
 import { DetailsRpcLive } from './details/Details'
 import { DetailsStore } from './details/DetailsStore'
@@ -25,6 +33,7 @@ import { Detections, DetectionsRpcLive } from './detections/Detections'
 import { DiagnosticsRpcLive } from './diagnostics/Diagnostics'
 import { LogBook } from './diagnostics/LogBook'
 import { RpcLoggingLive } from './diagnostics/RpcLogging'
+import { ClipboardLinks } from './downloads/ClipboardLinks'
 import { DownloadsRpcLive } from './downloads/Downloads'
 import { GalleriesRpcLive } from './galleries/Galleries'
 import { GameGuideRpcLive } from './gameguide/GameGuide'
@@ -50,6 +59,7 @@ import { LlmRpcLive, LlmStore } from './llm/LlmStore'
 import { ModelCatalog } from './llm/ModelCatalog'
 import { UsageLog } from './llm/UsageLog'
 import { MangaRpcLive } from './manga/Manga'
+import { MangaTranslation } from './manga/MangaTranslation'
 import { MangaRuntime } from './manga/MangaRuntime'
 import { MangaEditorRpcLive } from './mangaEditor/MangaEditor'
 import { ImageOcr } from './pictures/ImageOcr'
@@ -152,7 +162,7 @@ const GamesLive = Layer.mergeAll(LibraryRpcLive, GameTranslationLive).pipe(
   Layer.provideMerge(LaunchAlias.layer),
   Layer.provide(LocaleDetector.layer),
   Layer.provide(LiveControls.launchHooks.pipe(Layer.provide(LiveControlsCore))),
-  Layer.provide([LlmLive, PluginsLive, LunaHookHost.live]),
+  Layer.provide([LlmLive, PluginsLive, LunaHookHost.live, Background.layer]),
   Layer.provide([TranslationLines.layer, GameFileHashes.layer]),
   Layer.provideMerge(Games.layer),
   Layer.provideMerge(GameData.layer),
@@ -287,6 +297,126 @@ const DetectionsLive = Layer.mergeAll(DetectionsRpcLive, ClipboardImagesLive).pi
   Layer.provideMerge(Layer.mergeAll(PluginsRpcLive).pipe(Layer.provideMerge(PluginsLive))),
 )
 
+const overlaySession: ReadonlySet<OverlayStatus> = new Set([
+  'launching',
+  'attached',
+  'waiting-for-text',
+  'translating',
+  'setup-required',
+])
+
+const overlayActivity = (state: OverlayState): ReadonlyArray<ActivityItem> =>
+  overlaySession.has(state.status)
+    ? [{ id: 'overlay', kind: 'overlay', title: state.gameTitle ?? 'a game' }]
+    : []
+
+const subtitleSession: ReadonlySet<SubtitleStatus> = new Set([
+  'loading-model',
+  'listening',
+  'paused',
+])
+
+const subtitleActivity = (state: SubtitleState): ReadonlyArray<ActivityItem> =>
+  subtitleSession.has(state.status)
+    ? [{ id: 'subtitles', kind: 'subtitles', title: state.sourceName ?? 'Live Subtitles' }]
+    : []
+
+const isTrayToggle = Schema.is(TrayToggle)
+
+const isNoticeReplied = Schema.is(NoticeReplied)
+
+const BackgroundMainLive = Layer.effectDiscard(
+  Effect.gen(function* () {
+    const background = yield* Background
+    const detections = yield* Detections
+    const overlay = yield* TranslationOverlay
+    const subtitles = yield* LiveSubtitles
+    const toggles = yield* Queue.unbounded<TrayToggle>()
+    const replies = yield* Queue.unbounded<NoticeReplied>()
+
+    const receive = (event: Electron.MessageEvent) => {
+      if (isTrayToggle(event.data)) {
+        Queue.offerUnsafe(toggles, event.data)
+      }
+
+      if (isNoticeReplied(event.data)) {
+        Queue.offerUnsafe(replies, event.data)
+      }
+    }
+
+    yield* Effect.acquireRelease(
+      Effect.sync(() => process.parentPort.on('message', receive)),
+      () => Effect.sync(() => process.parentPort.off('message', receive)),
+    )
+
+    const toMain = (message: TrayState | ShowNotice) =>
+      // oxlint-disable-next-line unicorn/require-post-message-target-origin -- Electron's parentPort is not a window and takes no target origin.
+      Effect.sync(() => process.parentPort.postMessage(message))
+
+    const watchImages = Effect.fnUntraced(function* (on: boolean) {
+      const current = yield* detections.settings
+
+      yield* detections
+        .saveSettings({ ...current, listenToClipboard: on })
+        .pipe(
+          Effect.catchTag('DetectionError', (error) =>
+            Effect.logWarning('Turning copied images on or off failed', error.message),
+          ),
+        )
+    })
+
+    const watchLinks = Effect.fnUntraced(function* (on: boolean) {
+      const current = yield* background.settings
+
+      yield* background.saveSettings({ ...current, watchLinks: on })
+    })
+
+    yield* Stream.fromQueue(toggles).pipe(
+      Stream.runForEach((toggle) =>
+        toggle.listener === 'images' ? watchImages(toggle.on) : watchLinks(toggle.on),
+      ),
+      Effect.forkScoped,
+    )
+
+    yield* Stream.fromQueue(replies).pipe(
+      Stream.runForEach((replied) => background.reply(replied.id, replied.button)),
+      Effect.forkScoped,
+    )
+
+    const notices = yield* background.notices
+
+    yield* notices.pipe(Stream.runForEach(toMain), Effect.forkScoped)
+
+    yield* overlay.state.pipe(
+      Stream.runForEach((state) => background.track('overlay', overlayActivity(state))),
+      Effect.forkScoped,
+    )
+
+    yield* subtitles.state.pipe(
+      Stream.runForEach((state) => background.track('subtitles', subtitleActivity(state))),
+      Effect.forkScoped,
+    )
+
+    yield* Stream.zipLatestAll(
+      background.settingsChanges,
+      detections.settingsChanges,
+      background.activity,
+    ).pipe(
+      Stream.runForEach(([settings, detectionSettings, activity]) =>
+        toMain(
+          TrayState.make({ settings, watchImages: detectionSettings.listenToClipboard, activity }),
+        ),
+      ),
+      Effect.forkScoped,
+    )
+  }),
+)
+
+const BackgroundLive = Layer.mergeAll(BackgroundRpcLive, BackgroundMainLive).pipe(
+  Layer.provide([DetectionsLive, OverlayLive, SubtitlesLive]),
+  Layer.provide(Background.layer),
+)
+
 const LiveControlsWindowLive = Layer.effectDiscard(
   Effect.gen(function* () {
     const live = yield* LiveControls
@@ -325,19 +455,29 @@ const GameGuideLive = GameGuideRpcLive.pipe(
 
 const MemoriesLive = MemoriesRpcLive.pipe(Layer.provide([GameData.layer, LiveControlsCore]))
 
-const MangaLive = MangaRpcLive.pipe(Layer.provide([LlmLive, PluginsLive]))
+const MangaLive = MangaRpcLive.pipe(
+  Layer.provide([LlmLive, PluginsLive, Background.layer, MangaTranslation.layer]),
+)
 
 const MangaEditorLive = MangaEditorRpcLive.pipe(Layer.provide([LlmLive, PluginsLive]))
 
 // Not fetch: its undici aborts the whole core process when a server closes mid-download.
 const DownloadsLive = DownloadsRpcLive.pipe(
-  Layer.provide([Credentials.layer, SignInWindows.live, NodeHttpClient.layerNodeHttp]),
+  Layer.provide([
+    Credentials.layer,
+    SignInWindows.live,
+    NodeHttpClient.layerNodeHttp,
+    Background.layer,
+    ClipboardLinks.live,
+    MangaTranslation.layer,
+  ]),
 )
 
 const GalleriesLive = GalleriesRpcLive.pipe(Layer.provide(RootWatcher.live))
 
 const DetailsLive = DetailsRpcLive.pipe(
   Layer.provide([
+    Background.layer,
     DetailsStore.layer,
     DLsite.layer.pipe(Layer.provide(NodeHttpClient.layerNodeHttp)),
     Games.layer,
@@ -387,6 +527,7 @@ const NovelsLive = NovelsRpcLive.pipe(
     NovelInsightStore.layer,
     PageFetcher.live,
     LlmLive,
+    Background.layer,
   ]),
 )
 
@@ -401,6 +542,7 @@ const PlatformLive = Layer.mergeAll(NodeServices.layer, FetchHttpClient.layer)
 const CoreLive = RpcServer.layer(WenbuRpc).pipe(
   Layer.provide([
     AppearanceLive,
+    BackgroundLive,
     LlmLive,
     GamesLive,
     OverlayLive,

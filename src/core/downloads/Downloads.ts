@@ -18,6 +18,8 @@ import {
   SubscriptionRef,
 } from 'effect'
 import type { HttpClient } from 'effect/http'
+import { type ActivityItem, OpenGallery } from '#contract/Background'
+import { type ClipboardLink, NoticeOpen, NoticeReveal } from '#contract/CoreMessages'
 import { KeyValueStore } from 'effect/persistence'
 import { SqlClient, SqlSchema } from 'effect/sql'
 import {
@@ -36,9 +38,12 @@ import {
   sources as sourceInfo,
 } from '#contract/Downloads'
 import { NotEnoughSpace } from '#contract/Storage'
+import { Background, type Notice, NoticeRun } from '../background/Background'
 import { Credentials } from '../llm/Credentials'
 import { DiskSpace, nextFileBytes } from '../platform/DiskSpace'
 import * as SettingsStore from '../platform/SettingsStore'
+import { MangaTranslation } from '../manga/MangaTranslation'
+import { ClipboardLinks } from './ClipboardLinks'
 import { ExHentai } from './ExHentai'
 import {
   extensionFor,
@@ -92,6 +97,47 @@ const invalid = (field: string, message: string) =>
 
 const sourceOf = (id: SourceId) => gallerySources.find((source) => source.id === id) ?? NHentai
 
+const activityOf = (job: DownloadJob): ActivityItem => ({
+  id: job.id,
+  kind: 'download',
+  title: job.title,
+  done: job.pages.done,
+  ...(job.pages.total === undefined ? {} : { total: job.pages.total }),
+})
+
+const pagesText = (count: number) => (count === 1 ? '1 page' : `${count} pages`)
+
+const finishedNotice = (job: DownloadJob, translate: NoticeRun | undefined): Notice => {
+  if (job.folder === undefined) {
+    return { kind: 'downloads', title: `${job.title} is downloaded`, body: '', buttons: [] }
+  }
+
+  const target = OpenGallery.make({ folder: job.folder, page: 0, version: 'original' })
+
+  return {
+    kind: 'downloads',
+    title: `${job.title} is downloaded`,
+    body: `${pagesText(job.pages.done)} · in Galleries`,
+    target,
+    buttons:
+      translate === undefined
+        ? [
+            NoticeOpen.make({ label: 'Read', target }),
+            NoticeReveal.make({ label: 'Show in folder', path: job.folder }),
+          ]
+        : [translate, NoticeOpen.make({ label: 'Read', target })],
+  }
+}
+
+const shortLink = (url: URL) => `${url.hostname}${url.pathname}`
+
+const unsupportedLink = (copied: boolean): Notice => ({
+  kind: 'answer',
+  title: copied ? "Wenbu can't download this link" : 'No gallery link on the clipboard',
+  body: 'Copy a gallery from ExHentai, HDoujin, Hitomi or NHentai, then press Ctrl+Alt+D.',
+  buttons: [],
+})
+
 const parseLink = (text: string) => {
   const url = URL.parse(text.trim())
 
@@ -122,6 +168,39 @@ export const DownloadsRpcLive = DownloadsRpc.toLayer(
     const disk = yield* DiskSpace
     const path = yield* Path.Path
     const services = yield* Effect.context<HttpClient.HttpClient | FileSystem.FileSystem>()
+    const background = yield* Background
+    const clipboard = yield* ClipboardLinks
+    const mangaTranslation = yield* MangaTranslation
+
+    const notTranslated = (job: DownloadJob, reason: string) =>
+      background.notify({
+        kind: 'answer',
+        title: `${job.title} wasn't translated`,
+        body: reason,
+        buttons: [],
+      })
+
+    const translateButton = Effect.fnUntraced(function* (job: DownloadJob) {
+      const translator = yield* mangaTranslation.translator
+
+      if (job.folder === undefined || Option.isNone(translator)) {
+        return undefined
+      }
+
+      if (!(yield* translator.value.ready)) {
+        return undefined
+      }
+
+      return new NoticeRun({
+        label: 'Translate',
+        run: translator.value.translate(job.folder).pipe(
+          Effect.catchTags({
+            MangaError: (error) => notTranslated(job, error.message),
+            NotEnoughSpace: (error) => notTranslated(job, error.message),
+          }),
+        ),
+      })
+    })
 
     const userAgent = yield* Config.String('WENBU_USER_AGENT').pipe(Config.withDefault(chromeAgent))
 
@@ -572,6 +651,10 @@ export const DownloadsRpcLive = DownloadsRpc.toLayer(
 
       const job = (yield* SubscriptionRef.get(jobs)).find((candidate) => candidate.id === id)
 
+      if (status === 'finished' && job !== undefined) {
+        yield* background.notify(finishedNotice(job, yield* translateButton(job)))
+      }
+
       yield* (status === 'failed' ? Effect.logWarning : Effect.logInfo)('Download finished').pipe(
         Effect.annotateLogs({
           job: id,
@@ -924,6 +1007,75 @@ export const DownloadsRpcLive = DownloadsRpc.toLayer(
     })
 
     yield* pump
+
+    yield* SubscriptionRef.changes(jobs).pipe(
+      Stream.runForEach((all) =>
+        background.track(
+          'downloads',
+          all.filter((job) => isActive(job.status)).map((job) => activityOf(job)),
+        ),
+      ),
+      Effect.forkScoped,
+    )
+
+    const startFromNotice = (url: URL, source: SourceId) =>
+      start(url.href).pipe(
+        Effect.andThen(
+          background.notify({
+            kind: 'answer',
+            title: 'Download started',
+            body: `${sourceName(source)} · ${shortLink(url)}`,
+            buttons: [],
+          }),
+        ),
+        Effect.catchTag('DownloadError', (error) =>
+          background.notify({
+            kind: 'answer',
+            title: "The download didn't start",
+            body: error.message,
+            buttons: [],
+          }),
+        ),
+      )
+
+    const onLink = Effect.fn('Downloads.onLink')(function* (link: ClipboardLink) {
+      const settings = yield* background.settings
+
+      if (!link.requested && !settings.watchLinks) {
+        return
+      }
+
+      const url = Option.getOrUndefined(parseLink(link.url))
+
+      const source =
+        url === undefined ? undefined : gallerySources.find((candidate) => candidate.matches(url))
+
+      if (url === undefined || source === undefined) {
+        if (link.requested) {
+          yield* background.notify(unsupportedLink(link.url !== ''))
+        }
+
+        return
+      }
+
+      if (link.requested || settings.linkAction === 'download') {
+        yield* startFromNotice(url, source.id)
+
+        return
+      }
+
+      yield* background.notify({
+        kind: 'answer',
+        title: 'Download this gallery?',
+        body: `You copied a ${sourceName(source.id)} link · ${shortLink(url)}`,
+        buttons: [
+          new NoticeRun({ label: 'Download', run: startFromNotice(url, source.id) }),
+          new NoticeRun({ label: 'Ignore', run: Effect.void }),
+        ],
+      })
+    })
+
+    yield* clipboard.links.pipe(Stream.runForEach(onLink), Effect.forkScoped)
 
     return DownloadsRpc.of({
       getDownloadSettings: () => getSettings,

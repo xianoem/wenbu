@@ -17,23 +17,46 @@ import {
   nativeImage,
   nativeTheme,
   net,
+  Notification,
   protocol,
   safeStorage,
   shell,
+  Tray,
   utilityProcess,
 } from 'electron'
-import { Cause, Clock, DateTime, Effect, Predicate, Redacted, Schedule, Schema } from 'effect'
+import {
+  Cause,
+  Clock,
+  DateTime,
+  Effect,
+  Fiber,
+  Predicate,
+  Redacted,
+  Schedule,
+  Schema,
+} from 'effect'
+import {
+  AppTarget,
+  CloseAction,
+  defaultBackgroundSettings,
+  OpenGeneralSettings,
+} from '#contract/Background'
 import { bridgeChannels } from '#contract/Bridge'
 import {
   ClipboardImage,
+  ClipboardLink,
   LiveControlsWindow,
   MainLogEntry,
+  NoticeReplied,
   OverlayWindow,
   PageFetch,
+  ShowNotice,
   SourceSignIn,
   SourceSignOut,
   SubtitleLockToggle,
   SubtitleWindow,
+  TrayState,
+  TrayToggle,
   UpdateInstall,
   UpdateWatch,
 } from '#contract/CoreMessages'
@@ -42,7 +65,15 @@ import { pageImageScheme, pageImageWanted, thumbnailWanted } from '#contract/Pag
 import { WindowAction } from '#contract/WindowAction'
 import appIconPng from '../../build/icon.png?asset'
 import appIconIco from '../../build/icon.ico?asset'
-import { appUpdater } from './appUpdater'
+import trayOnDarkIco from '../../build/tray-on-dark.ico?asset'
+import trayOnDarkRunningIco from '../../build/tray-on-dark-running.ico?asset'
+import trayOnDarkDownloadingIco from '../../build/tray-on-dark-downloading.ico?asset'
+import trayOnLightIco from '../../build/tray-on-light.ico?asset'
+import trayOnLightRunningIco from '../../build/tray-on-light-running.ico?asset'
+import trayOnLightDownloadingIco from '../../build/tray-on-light-downloading.ico?asset'
+import { appUpdater, type CheckResult } from './appUpdater'
+import { clipboardLink } from './clipboardLink'
+import { closeDecision } from './closeDecision'
 import { coreSupervisor, type CoreSupervisor } from './coreSupervisor'
 import { coreCrashBudget } from './crashBudget'
 import { type CredentialKey, loadCredentialKey, type SecretProtector } from './credentialKey'
@@ -54,6 +85,8 @@ import { browserSignIns, chromeAgent } from './browserSignIn'
 import { novelPages } from './novelPages'
 import { keptLaunches, launchId, mainLog, outputTail, pruneLaunches } from './mainLog'
 import { thumbnailCache } from './thumbnailCache'
+import { type TrayIconState, trayIconState, trayMenu, trayTooltip } from './trayMenu'
+import { trayPanel } from './trayPanel'
 
 const preloadPath = join(import.meta.dirname, '../preload/preload.cjs')
 const rendererUrl = process.env['ELECTRON_RENDERER_URL']
@@ -74,6 +107,17 @@ pruneLaunches(logsRoot, keptLaunches - 1)
 let supervisor: CoreSupervisor | undefined
 let mainWindow: BrowserWindow | undefined
 let coreReady = false
+let quitting = false
+let closeAnswered = false
+
+let trayState = TrayState.make({
+  settings: defaultBackgroundSettings,
+  watchImages: true,
+  activity: [],
+})
+
+// Windows starts Wenbu with this flag when "Start with Windows" is on.
+const startHidden = process.argv.includes('--hidden')
 
 const log = mainLog({
   folder: join(logsRoot, launch),
@@ -165,7 +209,7 @@ const isAppUrl = (url: string) =>
 
 const loadPage = (
   window: BrowserWindow,
-  page: 'index' | 'overlay' | 'livecontrols' | 'subtitles',
+  page: 'index' | 'overlay' | 'livecontrols' | 'subtitles' | 'tray',
 ) => {
   if (rendererUrl === undefined) {
     void window.loadFile(join(import.meta.dirname, `../renderer/${page}.html`))
@@ -207,10 +251,86 @@ const createWindow = (core: CoreSupervisor) => {
   window.webContents.on('dom-ready', () => connectToCore(core, window))
   keepInApp(window)
   window.once('ready-to-show', () => window.show())
-  window.on('closed', () => app.quit())
+
+  window.on('close', (event) => {
+    const decision = closeDecision(trayState.settings, { quitting, answered: closeAnswered })
+
+    closeAnswered = false
+
+    if (decision === 'close') {
+      return
+    }
+
+    event.preventDefault()
+
+    if (decision === 'ask') {
+      window.webContents.send(bridgeChannels.closeAsked)
+
+      return
+    }
+
+    requestQuit(window.webContents)
+  })
+
+  window.on('closed', () => {
+    if (mainWindow === window) {
+      mainWindow = undefined
+    }
+  })
+
   loadPage(window, 'index')
 
   return window
+}
+
+const openMainWindow = (target?: AppTarget) => {
+  if (supervisor === undefined) {
+    return
+  }
+
+  const existing = mainWindow
+
+  if (existing === undefined || existing.isDestroyed()) {
+    const created = createWindow(supervisor)
+
+    mainWindow = created
+
+    if (target !== undefined) {
+      created.webContents.once('did-finish-load', () =>
+        created.webContents.send(bridgeChannels.navigate, target),
+      )
+    }
+
+    return
+  }
+
+  if (existing.isMinimized()) {
+    existing.restore()
+  }
+
+  existing.show()
+  existing.focus()
+
+  if (target !== undefined) {
+    existing.webContents.send(bridgeChannels.navigate, target)
+  }
+}
+
+let askToQuit = (asker?: Electron.WebContents) => asker?.send(bridgeChannels.quitAsked)
+
+const quitNow = () => {
+  quitting = true
+  app.quit()
+}
+
+const requestQuit = (asker?: Electron.WebContents) => {
+  if (trayState.activity.length === 0) {
+    quitNow()
+
+    return
+  }
+
+  askToQuit(asker)
 }
 
 const isOverlayWindow = Schema.is(OverlayWindow)
@@ -374,8 +494,317 @@ const startUpdates = (core: CoreSupervisor) => {
     }
   })
 
-  return updater.run
+  return updater
 }
+
+const trayIcons = {
+  dark: {
+    idle: trayOnDarkIco,
+    running: trayOnDarkRunningIco,
+    downloading: trayOnDarkDownloadingIco,
+  },
+  light: {
+    idle: trayOnLightIco,
+    running: trayOnLightRunningIco,
+    downloading: trayOnLightDownloadingIco,
+  },
+} as const
+
+/** The taskbar has its own light or dark theme, apart from the one apps use. */
+const trayIconFor = (state: TrayIconState) =>
+  trayIcons[nativeTheme.shouldUseDarkColorsForSystemIntegratedUI ? 'dark' : 'light'][state]
+
+const isTrayState = Schema.is(TrayState)
+
+const isShowNotice = Schema.is(ShowNotice)
+
+const isAppTarget = Schema.is(AppTarget)
+
+const isCloseAction = Schema.is(CloseAction)
+
+const downloadLinkShortcut = 'CommandOrControl+Alt+D'
+
+const updateCheckNotices: Record<CheckResult, { readonly title: string; readonly body: string }> = {
+  available: { title: 'A Wenbu update is downloading', body: 'Wenbu installs it when you quit.' },
+  current: { title: 'Wenbu is up to date', body: `You have version ${app.getVersion()}.` },
+  failed: {
+    title: "Wenbu couldn't check for updates",
+    body: 'Check your connection and try again.',
+  },
+  unsupported: {
+    title: 'Updates come with the installed app',
+    body: 'This copy runs from source.',
+  },
+}
+
+// Windows forgets a notification's buttons if nothing holds on to it.
+const shownNotices = new Set<Notification>()
+
+const notifyPlain = (title: string, body: string) => {
+  if (Notification.isSupported()) {
+    new Notification({ title, body, icon: appIconPng }).show()
+  }
+}
+
+const pressNotice = (core: CoreSupervisor, notice: ShowNotice, index: number) => {
+  const button = notice.buttons[index]
+
+  if (button === undefined) {
+    return
+  }
+
+  if (Predicate.isTagged(button, 'NoticeOpen')) {
+    openMainWindow(button.target)
+
+    return
+  }
+
+  if (Predicate.isTagged(button, 'NoticeReveal')) {
+    shell.showItemInFolder(button.path)
+
+    return
+  }
+
+  core.postMessage(NoticeReplied.make({ id: notice.id, button: index }), [])
+}
+
+const showNotice = (core: CoreSupervisor, notice: ShowNotice) => {
+  if (!Notification.isSupported()) {
+    return
+  }
+
+  const shown = new Notification({
+    title: notice.title,
+    body: notice.body,
+    icon: appIconPng,
+    actions: notice.buttons.map((button) => ({ type: 'button' as const, text: button.label })),
+  })
+
+  const forget = () => shownNotices.delete(shown)
+
+  shown.on('click', () => {
+    forget()
+    openMainWindow(notice.target)
+  })
+
+  shown.on('action', (details) => {
+    forget()
+    pressNotice(core, notice, details.actionIndex)
+  })
+
+  shown.on('close', forget)
+  shownNotices.add(shown)
+  shown.show()
+}
+
+const postClipboardLink = (core: CoreSupervisor, requested: boolean) =>
+  void clipboard.readText().then((text) => {
+    const url = clipboardLink(text)
+
+    if (url !== undefined || requested) {
+      core.postMessage(ClipboardLink.make({ url: url ?? '', requested }), [])
+    }
+  })
+
+const panelShown = () =>
+  clipboard.readText().then((text) => {
+    const link = clipboardLink(text)
+
+    return link === undefined ? {} : { link }
+  })
+
+const watchClipboardLinks = Effect.fnUntraced(function* (core: CoreSupervisor) {
+  let last = yield* Effect.promise(() => clipboard.readText())
+
+  const poll = Effect.map(
+    Effect.promise(() => clipboard.readText()),
+    (text) => {
+      if (text === last) {
+        return
+      }
+
+      last = text
+
+      const url = clipboardLink(text)
+
+      if (url !== undefined) {
+        core.postMessage(ClipboardLink.make({ url, requested: false }), [])
+      }
+    },
+  )
+
+  yield* Effect.repeat(poll, Schedule.spaced('750 millis'))
+})
+
+const startTray = (core: CoreSupervisor, checkForUpdates: () => Promise<CheckResult>) => {
+  const tray = new Tray(trayIconFor('idle'))
+  let linkWatching: Fiber.Fiber<unknown> | undefined
+  let loginItem: boolean | undefined
+
+  tray.setToolTip(trayTooltip([]))
+  nativeTheme.on('updated', () => tray.setImage(trayIconFor(trayIconState(trayState.activity))))
+
+  const panel = trayPanel({
+    preloadPath,
+    load: (window) => {
+      keepInApp(window)
+      loadPage(window, 'tray')
+    },
+    connect: (window) => connectToCore(core, window),
+    icon: () => tray.getBounds(),
+  })
+
+  askToQuit = (asker) => {
+    if (asker !== undefined) {
+      asker.send(bridgeChannels.quitAsked)
+
+      return
+    }
+
+    if (mainWindow !== undefined && mainWindow.isVisible()) {
+      mainWindow.webContents.send(bridgeChannels.quitAsked)
+
+      return
+    }
+
+    void panelShown().then((shown) => {
+      panel.show(shown)
+      panel.send(bridgeChannels.quitAsked)
+    })
+  }
+
+  const setLinkWatching = (on: boolean) => {
+    if (on && linkWatching === undefined) {
+      linkWatching = Effect.runFork(watchClipboardLinks(core))
+    }
+
+    if (!on && linkWatching !== undefined) {
+      Effect.runFork(Fiber.interrupt(linkWatching))
+      linkWatching = undefined
+    }
+  }
+
+  // A login item for electron.exe in development would start a bare Electron at sign-in.
+  const setLoginItem = (on: boolean) => {
+    if (!app.isPackaged || loginItem === on) {
+      return
+    }
+
+    loginItem = on
+    app.setLoginItemSettings({ openAtLogin: on, args: ['--hidden'] })
+  }
+
+  const applyState = (next: TrayState) => {
+    trayState = next
+    tray.setImage(trayIconFor(trayIconState(next.activity)))
+    tray.setToolTip(trayTooltip(next.activity))
+    setLinkWatching(next.settings.watchLinks)
+    setLoginItem(next.settings.startWithWindows)
+  }
+
+  const checkNow = () =>
+    void checkForUpdates().then((result) => {
+      const notice = updateCheckNotices[result]
+
+      notifyPlain(notice.title, notice.body)
+    })
+
+  const menuActions = {
+    open: () => openMainWindow(),
+    downloadLink: () => postClipboardLink(core, true),
+    watchImages: (on: boolean) => core.postMessage(TrayToggle.make({ listener: 'images', on }), []),
+    watchLinks: (on: boolean) => core.postMessage(TrayToggle.make({ listener: 'links', on }), []),
+    settings: () => openMainWindow(OpenGeneralSettings.make({})),
+    checkUpdates: checkNow,
+    quit: () => requestQuit(),
+  }
+
+  tray.on('click', () => {
+    if (trayState.settings.trayClick === 'panel') {
+      void panelShown().then((shown) => panel.toggle(shown))
+
+      return
+    }
+
+    openMainWindow()
+  })
+
+  tray.on('double-click', () => {
+    panel.hide()
+    openMainWindow()
+  })
+
+  tray.on('right-click', () => {
+    const listeners = {
+      watchImages: trayState.watchImages,
+      watchLinks: trayState.settings.watchLinks,
+    }
+
+    tray.popUpContextMenu(Menu.buildFromTemplate(trayMenu(listeners, menuActions)))
+  })
+
+  core.on('message', (message) => {
+    if (isTrayState(message)) {
+      applyState(message)
+    }
+
+    if (isShowNotice(message)) {
+      showNotice(core, message)
+    }
+  })
+
+  if (!globalShortcut.register(downloadLinkShortcut, () => postClipboardLink(core, true))) {
+    log.warn('Another app already uses the download shortcut', { shortcut: downloadLinkShortcut })
+  }
+
+  ipcMain.on(bridgeChannels.resizePanel, (event, height) => {
+    if (Predicate.isNumber(height)) {
+      panel.resize(event.sender, height)
+    }
+  })
+
+  ipcMain.on(bridgeChannels.hidePanel, () => panel.hide())
+
+  ipcMain.on(bridgeChannels.panelPainted, (event) => panel.painted(event.sender))
+
+  // Loaded once Wenbu has settled, so the first click opens the panel at once.
+  Effect.runFork(Effect.andThen(Effect.sleep('3 seconds'), Effect.sync(panel.prepare)))
+
+  ipcMain.on(bridgeChannels.openApp, (_event, target) => {
+    panel.hide()
+    openMainWindow(isAppTarget(target) ? target : undefined)
+  })
+
+  app.on('will-quit', () => {
+    globalShortcut.unregister(downloadLinkShortcut)
+    tray.destroy()
+  })
+}
+
+ipcMain.on(bridgeChannels.closeWith, (event, action) => {
+  if (!isCloseAction(action) || mainWindow?.webContents !== event.sender) {
+    return
+  }
+
+  if (action === 'quit') {
+    requestQuit(event.sender)
+
+    return
+  }
+
+  closeAnswered = true
+  mainWindow.close()
+})
+
+ipcMain.on(bridgeChannels.quit, (event, confirmed) => {
+  if (confirmed === true) {
+    quitNow()
+
+    return
+  }
+
+  requestQuit(event.sender)
+})
 
 const isWindowAction = Schema.is(WindowAction)
 
@@ -642,20 +1071,14 @@ const watchClipboard = Effect.fnUntraced(function* (core: CoreSupervisor) {
   yield* Effect.repeat(poll, Schedule.spaced('750 millis'))
 })
 
-app.on('second-instance', () => {
-  if (mainWindow === undefined || mainWindow.isDestroyed()) {
-    return
-  }
+app.on('second-instance', () => openMainWindow())
 
-  if (mainWindow.isMinimized()) {
-    mainWindow.restore()
-  }
+// Wenbu keeps running in the tray after its last window closes.
+app.on('window-all-closed', () => {})
 
-  mainWindow.show()
-  mainWindow.focus()
+app.on('before-quit', () => {
+  quitting = true
 })
-
-app.on('window-all-closed', () => app.quit())
 
 // Electron requires schemes to be registered before the app is ready.
 protocol.registerSchemesAsPrivileged([
@@ -717,6 +1140,12 @@ const servePageImages = () =>
 
 const start = Effect.gen(function* () {
   Menu.setApplicationMenu(null)
+
+  // Windows shows notifications only for an app with an id; the installer gives it this one.
+  if (process.platform === 'win32') {
+    app.setAppUserModelId(app.isPackaged ? 'dev.wenbu.app' : process.execPath)
+  }
+
   yield* Effect.promise(() => app.whenReady())
 
   servePageImages()
@@ -741,6 +1170,7 @@ const start = Effect.gen(function* () {
         withinMs: stopped.withinMillis,
       })
 
+      openMainWindow()
       showCoreStopped(mainWindow, stopped)
     },
   })
@@ -757,9 +1187,17 @@ const start = Effect.gen(function* () {
   startLiveControls(core)
   startSignIns(core)
   startNovelPages(core)
-  mainWindow = createWindow(core)
+
+  const updater = startUpdates(core)
+
+  startTray(core, updater.checkNow)
+
+  if (!startHidden) {
+    mainWindow = createWindow(core)
+  }
+
   yield* Effect.forkDetach(watchClipboard(core))
-  yield* Effect.forkDetach(startUpdates(core))
+  yield* Effect.forkDetach(updater.run)
 })
 
 const failStartup = (cause: Cause.Cause<unknown>) =>

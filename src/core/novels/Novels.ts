@@ -51,6 +51,7 @@ import { fold, makeMatcher } from '../glossary/GlossaryMatcher'
 import { GlossaryStore } from '../glossary/GlossaryStore'
 import { findCandidates } from '../glossary/TermScan'
 import { checkCandidates } from '../glossary/TermShortlist'
+import { Background } from '../background/Background'
 import { LlmClient } from '../llm/LlmClient'
 import { PresetReferences } from '../llm/PresetReferences'
 import * as SettingsStore from '../platform/SettingsStore'
@@ -76,6 +77,7 @@ import {
 } from './NovelDigests'
 import { NovelInsightStore } from './NovelInsightStore'
 import { NovelStore, type StoredChapter, type StoredNovel } from './NovelStore'
+import { chapterNotice } from './ChapterNotice'
 import { Interactive, PageFetcher } from './PageFetcher'
 import {
   bookIdOf,
@@ -176,6 +178,7 @@ const scanStart: ScanProgress = {
 export const NovelsRpcLive = NovelsRpc.toLayer(
   Effect.gen(function* () {
     const store = yield* NovelStore
+    const background = yield* Background
     const glossaries = yield* GlossaryStore
     const insights = yield* NovelInsightStore
     const pages = yield* PageFetcher
@@ -1226,6 +1229,12 @@ export const NovelsRpcLive = NovelsRpc.toLayer(
       if (added.length > 0) {
         yield* Effect.logInfo('New chapters found').pipe(
           Effect.annotateLogs({ site: site.id, added: added.length }),
+        )
+      }
+
+      if (added.length > 0 && !(yield* Interactive)) {
+        yield* background.notify(
+          chapterNotice(novelId, novel.title_translated ?? novel.title, added),
         )
       }
     })

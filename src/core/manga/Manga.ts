@@ -8,7 +8,8 @@ import {
   FiberHandle,
   FileSystem,
   Option,
-  type Path,
+  Context,
+  Path,
   Schema,
   Stream,
   SubscriptionRef,
@@ -27,12 +28,16 @@ import {
   type RecentPage,
 } from '#contract/Manga'
 import { NotEnoughSpace, type SpaceShortfall } from '#contract/Storage'
+import { OpenGallery } from '#contract/Background'
+import { NoticeOpen, NoticeReveal } from '#contract/CoreMessages'
+import { Background, type Notice } from '../background/Background'
 import { type Completion, LlmClient } from '../llm/LlmClient'
 import { PresetReferences } from '../llm/PresetReferences'
 import { DiskSpace, nextFileBytes } from '../platform/DiskSpace'
 import * as SettingsStore from '../platform/SettingsStore'
 import { Plugins } from '../plugins/Plugins'
 import { warmOnEngineChange } from './EngineWarmup'
+import { MangaTranslation } from './MangaTranslation'
 import {
   cleanSource,
   isTranslatable,
@@ -202,6 +207,8 @@ export const MangaRpcLive = MangaRpc.toLayer(
     const resources = yield* Config.String('WENBU_RESOURCES_DIR')
     const dataDir = yield* Config.String('WENBU_DATA_DIR')
     const files = yield* Effect.context<Path.Path | FileSystem.FileSystem>()
+    const background = yield* Background
+    const mangaTranslation = yield* MangaTranslation
 
     const store = SettingsStore.make(
       yield* KeyValueStore.KeyValueStore,
@@ -508,6 +515,51 @@ export const MangaRpcLive = MangaRpc.toLayer(
       return { outcome: outcome.value, done, failed, space }
     })
 
+    const runNotice = (run: MangaRun): Notice => {
+      const name = Context.get(files, Path.Path).basename(run.folder)
+      const pages = `${run.pages.done} of ${run.pages.total} pages`
+      const target = OpenGallery.make({ folder: run.folder, page: 0, version: 'translated' })
+
+      if (run.status === 'translated' || run.status === 'partial') {
+        return {
+          kind: 'runs',
+          title:
+            run.status === 'translated' ? `${name} is translated` : `${name} is partly translated`,
+          body: pages,
+          target,
+          buttons: [
+            NoticeOpen.make({ label: 'Read', target }),
+            NoticeReveal.make({ label: 'Show in folder', path: run.outputFolder }),
+          ],
+        }
+      }
+
+      return {
+        kind: 'runs',
+        title: `Translating ${name} stopped`,
+        body: run.error ?? pages,
+        buttons: [],
+      }
+    }
+
+    yield* SubscriptionRef.changes(runs).pipe(
+      Stream.runForEach((all) =>
+        background.track(
+          'manga',
+          all
+            .filter((run) => run.status === 'running')
+            .map((run) => ({
+              id: run.id,
+              kind: 'manga' as const,
+              title: Context.get(files, Path.Path).basename(run.folder),
+              done: run.pages.done,
+              total: run.pages.total,
+            })),
+        ),
+      ),
+      Effect.forkScoped,
+    )
+
     const finish = Effect.fnUntraced(function* (
       runId: string,
       result: {
@@ -542,6 +594,10 @@ export const MangaRpcLive = MangaRpc.toLayer(
 
       if (run !== undefined) {
         yield* save(run)
+      }
+
+      if (run !== undefined && result.status !== 'cancelled') {
+        yield* background.notify(runNotice(run))
       }
 
       yield* (result.status === 'failed' ? Effect.logWarning : Effect.logInfo)(
@@ -716,6 +772,11 @@ export const MangaRpcLive = MangaRpc.toLayer(
       }),
       Stream.changesWith(Schema.toEquivalence(MangaRuntimeState)),
     )
+
+    yield* mangaTranslation.register({
+      ready: Effect.map(plugins.mangaEngine, Option.isSome),
+      translate: (folder) => Effect.asVoid(start(folder)),
+    })
 
     return MangaRpc.of({
       getMangaSettings: () => getSettings,

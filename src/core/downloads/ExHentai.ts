@@ -1,6 +1,6 @@
 import { Effect, Option, Random } from 'effect'
 import type { Cookies } from 'effect/http'
-import type { RequestDelay } from '#contract/Downloads'
+import { type RequestDelay, sourceHosts } from '#contract/Downloads'
 import {
   expectOk,
   findCookie,
@@ -232,8 +232,7 @@ export const visitExHentai = Effect.fnUntraced(function* (context: SourceContext
 
 export const ExHentai: GallerySource = {
   id: 'exhentai',
-  matches: (url) =>
-    /^(www\.)?(e-|ex)hentai\.org$/i.test(url.hostname) && galleryPattern.test(url.pathname),
+  matches: (url) => sourceHosts.exhentai.test(url.hostname) && galleryPattern.test(url.pathname),
   // ExHentai bans accounts that load many pages at once.
   pageConcurrency: 1,
   signIn: {

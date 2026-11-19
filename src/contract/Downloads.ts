@@ -22,6 +22,20 @@ export const sources: ReadonlyArray<SourceInfo> = [
 
 export const sourceName = (id: SourceId) => sources.find((source) => source.id === id)?.name ?? id
 
+export const sourceHosts: Record<SourceId, RegExp> = {
+  exhentai: /^(www\.)?(e-|ex)hentai\.org$/i,
+  hdoujin: /^(www\.)?hdoujin\.(org|net)$/i,
+  hitomi: /^(www\.)?hitomi\.la$/i,
+  nhentai: /^(www\.)?nhentai\.net$/i,
+}
+
+/** By host only; Downloads still checks that the address is a gallery when it starts. */
+export const sourceOfLink = (link: string): SourceId | undefined => {
+  const host = URL.parse(link)?.hostname ?? ''
+
+  return SourceId.literals.find((id) => sourceHosts[id].test(host))
+}
+
 export const FolderName = Schema.Literals(['title', 'id-title', 'source-title'])
 
 export type FolderName = typeof FolderName.Type

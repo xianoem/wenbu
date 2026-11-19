@@ -43,6 +43,7 @@ import { DiskSpace } from '../platform/DiskSpace'
 import { GameData } from '../rpgmaker/GameData'
 import type { RpgData } from '../rpgmaker/RpgData'
 import { LogBook } from '../diagnostics/LogBook'
+import { Background } from '../background/Background'
 import { GameTranslationLive } from './GameTranslation'
 import { GameFileHashes } from './GameFileHashes'
 import { preparationSystem } from './GlossaryPrompts'
@@ -138,6 +139,7 @@ const layerWithFree = (
   platform: Layer.Layer<NodeServices.NodeServices> = NodeServices.layer,
 ) =>
   Layer.mergeAll(GameTranslationLive, LibraryRpcLive).pipe(
+    Layer.provideMerge(Background.layer),
     Layer.provideMerge(TestLauncher),
     Layer.provideMerge(Games.layer),
     Layer.provideMerge(GameData.layer),
@@ -317,6 +319,23 @@ describe('GameTranslation', () => {
       expect(
         (yield* translation.listTranslationRuns({ gameId: game.id })).map((saved) => saved.status),
       ).toEqual(['translated'])
+    }).pipe(Effect.scoped, Effect.provide(TestLayer)),
+  )
+
+  it.live('tells the user when a run finishes', () =>
+    Effect.gen(function* () {
+      const background = yield* Background
+      const notices = yield* background.notices
+      const { translation, game, finished } = yield* setup(['こんにちは'])
+
+      yield* translation.startTranslation({ gameId: game.id })
+      yield* finished
+
+      const [shown] = yield* notices.pipe(Stream.take(1), Stream.runCollect)
+
+      expect(shown?.title).toMatch(/ is translated$/)
+      expect(shown?.body).toBe('3 lines · $1.50')
+      expect(shown?.buttons.map((button) => button.label)).toEqual(['Open game'])
     }).pipe(Effect.scoped, Effect.provide(TestLayer)),
   )
 

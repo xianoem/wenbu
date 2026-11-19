@@ -10,6 +10,7 @@ import {
   PlugsConnectedIcon,
   PuzzlePieceIcon,
   ScanIcon,
+  SlidersHorizontalIcon,
   SquaresFourIcon,
   TranslateIcon,
 } from '@phosphor-icons/react'
@@ -51,6 +52,12 @@ const readerScreens = [
   { screen: 'galleries', label: 'Galleries' },
   { screen: 'glossaries', label: 'Glossaries' },
 ] as const satisfies ReadonlyArray<{ screen: Screen; label: string }>
+
+const generalDestination = {
+  page: 'general',
+  label: 'General',
+  Icon: SlidersHorizontalIcon,
+} as const
 
 const modelsDestination = { page: 'models', label: 'Models', Icon: PlugsConnectedIcon } as const
 
@@ -214,6 +221,7 @@ function SettingsNavigation({ onBack }: { readonly onBack: () => void }) {
 
   const navButton = (
     destination:
+      | typeof generalDestination
       | typeof modelsDestination
       | typeof detectionsDestination
       | typeof downloadsDestination
@@ -237,6 +245,7 @@ function SettingsNavigation({ onBack }: { readonly onBack: () => void }) {
         <CaretLeftIcon />
         Back to app
       </Button>
+      {navButton(generalDestination)}
       {navButton(modelsDestination)}
       <TranslationGroup />
       {detectionsAvailable ? navButton(detectionsDestination) : null}

@@ -1,6 +1,17 @@
 import * as NodeServices from '@effect/platform-node/NodeServices'
 import { assert, describe, it } from '@effect/vitest'
-import { Effect, FileSystem, Layer, Option, Path, Redacted, Schema, Stream } from 'effect'
+import {
+  Context,
+  Effect,
+  FileSystem,
+  Layer,
+  Option,
+  Path,
+  Queue,
+  Redacted,
+  Schema,
+  Stream,
+} from 'effect'
 import {
   HttpClient,
   HttpClientError,
@@ -10,7 +21,8 @@ import {
 import { KeyValueStore } from 'effect/persistence'
 import { RpcTest } from 'effect/rpc'
 import { SqlClient } from 'effect/sql'
-import { SourceSession } from '#contract/CoreMessages'
+import { defaultBackgroundSettings } from '#contract/Background'
+import { ClipboardLink, SourceSession } from '#contract/CoreMessages'
 import {
   canResume,
   defaultDownloadSettings,
@@ -20,10 +32,13 @@ import {
   type DownloadsState,
 } from '#contract/Downloads'
 import { reserveBytes } from '#contract/Storage'
+import { Background } from '../background/Background'
 import { Credentials } from '../llm/Credentials'
+import { MangaTranslation } from '../manga/MangaTranslation'
 import * as Database from '../platform/Database'
 import { DiskSpace } from '../platform/DiskSpace'
 import * as SettingsStore from '../platform/SettingsStore'
+import { ClipboardLinks } from './ClipboardLinks'
 import { DownloadsRpcLive } from './Downloads'
 import { Pacing } from './GallerySource'
 import { SignInWindows } from './SignInWindows'
@@ -201,8 +216,13 @@ const setup = Effect.fn(function* (options: Options) {
     forget: () => Effect.void,
   })
 
+  const links = yield* Queue.unbounded<ClipboardLink>()
+
   const layer = DownloadsRpcLive.pipe(
+    Layer.provideMerge(Background.layer),
+    Layer.provideMerge(MangaTranslation.layer),
     Layer.provide([
+      ClipboardLinks.fromQueue(links),
       fakeHttp(options.route, requests),
       windows,
       CredentialsTest,
@@ -214,6 +234,11 @@ const setup = Effect.fn(function* (options: Options) {
 
   const context = yield* Layer.build(layer)
   const client = yield* RpcTest.makeClient(DownloadsRpc).pipe(Effect.provideContext(context))
+  const background = Context.get(context, Background)
+  const mangaTranslation = Context.get(context, MangaTranslation)
+
+  const copy = (url: string, requested: boolean) =>
+    Queue.offer(links, ClipboardLink.make({ url, requested }))
 
   const until = (predicate: (state: DownloadsState) => boolean) =>
     client
@@ -233,8 +258,22 @@ const setup = Effect.fn(function* (options: Options) {
       (state) => Option.getOrThrow(Option.fromNullishOr(state.jobs.find((job) => job.id === id))),
     )
 
-  return { client, folder, path, fs, requests, until, settle }
+  return {
+    client,
+    folder,
+    path,
+    fs,
+    requests,
+    until,
+    settle,
+    background,
+    copy,
+    mangaTranslation,
+  }
 })
+
+const watchLinks = (background: Background['Service']) =>
+  background.saveSettings({ ...defaultBackgroundSettings, watchLinks: true })
 
 describe('Downloads', () => {
   it.live('downloads every page into a folder named after the gallery', () =>
@@ -259,6 +298,104 @@ describe('Downloads', () => {
       const details = yield* fs.readFileString(path.join(gallery, 'info.json'))
 
       assert.include(details, '"artists":["koari"]')
+    }).pipe(Effect.provide(NodeServices.layer), Effect.scoped),
+  )
+
+  it.live('tells the user when a download finishes', () =>
+    Effect.gen(function* () {
+      const { client, settle, background } = yield* setup({ route: nhentai })
+      const notices = yield* background.notices
+
+      yield* settle(yield* client.startDownload({ url: 'https://nhentai.net/g/123/' }))
+
+      const [shown] = yield* notices.pipe(Stream.take(1), Stream.runCollect)
+
+      assert.strictEqual(shown?.title, 'Summer: Festival is downloaded')
+      assert.strictEqual(shown?.body, '3 pages · in Galleries')
+
+      assert.deepStrictEqual(
+        shown?.buttons.map((button) => button.label),
+        ['Read', 'Show in folder'],
+      )
+    }).pipe(Effect.provide(NodeServices.layer), Effect.scoped),
+  )
+
+  it.live('offers to translate a downloaded gallery when a manga engine is on', () =>
+    Effect.gen(function* () {
+      const { client, settle, background, mangaTranslation, folder, path } = yield* setup({
+        route: nhentai,
+      })
+
+      const translated: Array<string> = []
+
+      yield* mangaTranslation.register({
+        ready: Effect.succeed(true),
+        translate: (gallery) => Effect.sync(() => translated.push(gallery)),
+      })
+
+      const notices = yield* background.notices
+
+      yield* settle(yield* client.startDownload({ url: 'https://nhentai.net/g/123/' }))
+
+      const [shown] = yield* notices.pipe(Stream.take(1), Stream.runCollect)
+
+      assert.deepStrictEqual(
+        shown?.buttons.map((button) => button.label),
+        ['Translate', 'Read'],
+      )
+
+      yield* background.reply(shown?.id ?? '', 0)
+
+      assert.deepStrictEqual(translated, [path.join(folder, 'Summer Festival')])
+    }).pipe(Effect.provide(NodeServices.layer), Effect.scoped),
+  )
+
+  it.live('asks before downloading a gallery link the user copied', () =>
+    Effect.gen(function* () {
+      const { settle, background, copy, until } = yield* setup({ route: nhentai })
+      const notices = yield* background.notices
+
+      yield* watchLinks(background)
+      yield* copy('https://nhentai.net/g/123/', false)
+
+      const [asked] = yield* notices.pipe(Stream.take(1), Stream.runCollect)
+
+      assert.strictEqual(asked?.title, 'Download this gallery?')
+
+      yield* background.reply(asked?.id ?? '', 0)
+
+      const started = yield* until((state) => state.jobs.length === 1)
+      const job = yield* settle(started.jobs[0]?.id ?? '')
+
+      assert.strictEqual(job.status, 'finished')
+    }).pipe(Effect.provide(NodeServices.layer), Effect.scoped),
+  )
+
+  it.live('downloads a link right away when the user pressed the shortcut', () =>
+    Effect.gen(function* () {
+      const { background, copy, until } = yield* setup({ route: nhentai })
+
+      yield* copy('https://nhentai.net/g/123/', true)
+
+      const started = yield* until((state) => state.jobs.length === 1)
+
+      assert.strictEqual(started.jobs[0]?.url, 'https://nhentai.net/g/123/')
+      assert.isFalse((yield* background.settings).watchLinks)
+    }).pipe(Effect.provide(NodeServices.layer), Effect.scoped),
+  )
+
+  it.live('ignores copied links that are not galleries', () =>
+    Effect.gen(function* () {
+      const { background, copy } = yield* setup({ route: nhentai })
+      const notices = yield* background.notices
+
+      yield* watchLinks(background)
+      yield* copy('https://example.com/article', false)
+      yield* copy('https://nhentai.net/g/123/', false)
+
+      const [asked] = yield* notices.pipe(Stream.take(1), Stream.runCollect)
+
+      assert.include(asked?.body, 'nhentai.net/g/123')
     }).pipe(Effect.provide(NodeServices.layer), Effect.scoped),
   )
 
@@ -413,7 +550,7 @@ describe('Downloads', () => {
 
   it.live('asks before finishing at reduced quality when GP runs out', () =>
     Effect.gen(function* () {
-      const { client, until, settle, folder, path, fs } = yield* setup({
+      const { client, until, settle, folder, path, fs, background } = yield* setup({
         route: exhentai('none'),
         window: signedInWindow,
       })
@@ -431,6 +568,18 @@ describe('Downloads', () => {
         reason: 'not-enough-gp',
         remaining: 2,
       })
+
+      const running = yield* background.activity.pipe(
+        Stream.filter((items) => items.length > 0),
+        Stream.runHead,
+        Effect.map(Option.getOrThrow),
+        Effect.timeout('5 seconds'),
+      )
+
+      assert.deepStrictEqual(
+        running.map((item) => [item.kind, item.id]),
+        [['download', id]],
+      )
 
       yield* client.answerDownload({ jobId: id, accept: true })
 

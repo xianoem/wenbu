@@ -1,6 +1,5 @@
 import { useAtomSet, useAtomValue } from '@effect/atom-react'
 import { WaveformIcon } from '@phosphor-icons/react'
-import { cn } from 'cn'
 import { Exit, Predicate, Schema } from 'effect'
 import { AsyncResult } from 'effect/reactivity'
 import { useState } from 'react'
@@ -16,8 +15,8 @@ import { formErrorOf } from '#lib/forms'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '#ui/select'
 import { Slider } from '#ui/slider'
 import { Switch } from '#ui/switch'
-import { ToggleGroup, ToggleGroupItem } from '#ui/toggle-group'
 import { pluginsAtom } from '../plugins/plugins'
+import { Segmented } from '../settings/components/Segmented'
 import { NumberField, SettingRow, SettingsCard } from '../settings/components/SettingsCard'
 import { SettingsFooter } from '../settings/components/SettingsFooter'
 import {
@@ -50,46 +49,6 @@ const spokenLanguages: Record<string, string> = {
   vi: 'Vietnamese',
   th: 'Thai',
   id: 'Indonesian',
-}
-
-function Segmented<A extends string>({
-  label,
-  value,
-  options,
-  onChange,
-}: {
-  readonly label: string
-  readonly value: A
-  readonly options: ReadonlyArray<readonly [A, string]>
-  readonly onChange: (value: A) => void
-}) {
-  return (
-    <ToggleGroup
-      aria-label={label}
-      value={[value]}
-      className="rounded-full bg-foreground/6 p-[3px]"
-      onValueChange={(next) => {
-        const chosen = options.find(([option]) => next.includes(option))
-
-        if (chosen !== undefined) {
-          onChange(chosen[0])
-        }
-      }}
-    >
-      {options.map(([option, text]) => (
-        <ToggleGroupItem
-          key={option}
-          value={option}
-          className={cn(
-            'h-7 rounded-full px-3 text-[13px] font-normal text-muted-foreground hover:bg-transparent',
-            'data-pressed:bg-background data-pressed:font-medium data-pressed:text-foreground data-pressed:shadow-card',
-          )}
-        >
-          {text}
-        </ToggleGroupItem>
-      ))}
-    </ToggleGroup>
-  )
 }
 
 function ModelRow({

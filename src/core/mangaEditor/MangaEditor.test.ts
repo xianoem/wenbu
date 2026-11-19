@@ -27,7 +27,9 @@ import type { Plugin } from '#contract/Plugins'
 import { ScreenAiOcr } from '../detections/ScreenAiOcr'
 import { type CompletionRequest, LlmClient } from '../llm/LlmClient'
 import { PresetReferences } from '../llm/PresetReferences'
+import { Background } from '../background/Background'
 import { MangaRpcLive } from '../manga/Manga'
+import { MangaTranslation } from '../manga/MangaTranslation'
 import { MangaRuntime } from '../manga/MangaRuntime'
 import * as Database from '../platform/Database'
 import { DiskSpace } from '../platform/DiskSpace'
@@ -142,6 +144,7 @@ const setup = Effect.fn(function* (options: { readonly preset?: string } = {}) {
   )
 
   const layer = Layer.mergeAll(MangaEditorRpcLive, MangaRpcLive).pipe(
+    Layer.provide([Background.layer, MangaTranslation.layer]),
     Layer.provideMerge(PresetReferences.layer),
     Layer.provide(
       Layer.mergeAll(llm, plugins, screenAi, runtime, DiskSpace.fixed(100 * 1024 ** 3)),

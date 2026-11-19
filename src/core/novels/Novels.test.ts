@@ -20,6 +20,7 @@ import { LlmClient } from '../llm/LlmClient'
 import { PresetReferences } from '../llm/PresetReferences'
 import * as Database from '../platform/Database'
 import { NovelInsightStore } from './NovelInsightStore'
+import { Background } from '../background/Background'
 import { NovelsRpcLive, ScanPause } from './Novels'
 import { NovelStore } from './NovelStore'
 import { PageFetcher } from './PageFetcher'
@@ -198,6 +199,7 @@ const setup = Effect.gen(function* () {
       yield* sitePages,
       llm,
       PresetReferences.layer,
+      Background.layer,
     ]),
     Layer.provide(Layer.succeed(ScanPause)(0)),
     Layer.provide(KeyValueStore.layerSql({ table: 'settings' })),

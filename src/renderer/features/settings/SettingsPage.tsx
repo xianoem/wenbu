@@ -1,5 +1,6 @@
 import { useAtomValue } from '@effect/atom-react'
 import { settingsPageAtom, type SettingsPage as Page } from '#lib/navigation'
+import { GeneralSettingsPage } from '../background/GeneralSettingsPage'
 import { DetectionsSettingsPage } from '../detections/DetectionsSettingsPage'
 import { useDetectionsAvailable } from '../detections/hooks/useDetectionsAvailable'
 import { DownloadsSettingsPage } from '../downloads/DownloadsSettingsPage'
@@ -11,6 +12,7 @@ import { ModelsPage } from './ModelsPage'
 import { TranslationSettingsPage } from './TranslationSettingsPage'
 
 const pages: Record<Page, () => React.JSX.Element> = {
+  general: GeneralSettingsPage,
   models: ModelsPage,
   translation: TranslationSettingsPage,
   overlay: OverlaySettingsPage,

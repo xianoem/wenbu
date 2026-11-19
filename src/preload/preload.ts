@@ -53,6 +53,51 @@ const onCoreStopped = (listener: CoreStoppedListener) => {
   }
 }
 
+/** Main may send before the page subscribes, so the latest event waits for the first listener. */
+const latestEvent = <A>(channel: string) => {
+  const listeners = new Set<(value: A) => void>()
+  let waiting: { readonly value: A } | undefined
+
+  ipcRenderer.on(channel, (_event, value: A) => {
+    if (listeners.size === 0) {
+      waiting = { value }
+
+      return
+    }
+
+    for (const listener of listeners) {
+      listener(value)
+    }
+  })
+
+  return (listener: (value: A) => void) => {
+    listeners.add(listener)
+
+    if (waiting !== undefined) {
+      listener(waiting.value)
+      waiting = undefined
+    }
+
+    return () => {
+      listeners.delete(listener)
+    }
+  }
+}
+
+type BridgeListener<Key extends keyof WenbuBridge> = WenbuBridge[Key] extends (
+  listener: (value: infer A) => void,
+) => () => void
+  ? A
+  : never
+
+const onNavigate = latestEvent<BridgeListener<'onNavigate'>>(bridgeChannels.navigate)
+
+const onCloseAsked = latestEvent<void>(bridgeChannels.closeAsked)
+
+const onQuitAsked = latestEvent<void>(bridgeChannels.quitAsked)
+
+const onPanelShown = latestEvent<BridgeListener<'onPanelShown'>>(bridgeChannels.panelShown)
+
 const bridge: WenbuBridge = {
   window: (action) => ipcRenderer.send(bridgeChannels.window, action),
   chooseFolder: () => ipcRenderer.invoke(bridgeChannels.chooseFolder),
@@ -70,6 +115,16 @@ const bridge: WenbuBridge = {
   relaunch: () => ipcRenderer.send(bridgeChannels.relaunch),
   exportDiagnostics: () => ipcRenderer.invoke(bridgeChannels.exportDiagnostics),
   openLogsFolder: () => ipcRenderer.send(bridgeChannels.openLogsFolder),
+  openApp: (target) => ipcRenderer.send(bridgeChannels.openApp, target),
+  onNavigate,
+  onCloseAsked,
+  closeWith: (action) => ipcRenderer.send(bridgeChannels.closeWith, action),
+  quit: (confirmed) => ipcRenderer.send(bridgeChannels.quit, confirmed),
+  onQuitAsked,
+  onPanelShown,
+  resizePanel: (height) => ipcRenderer.send(bridgeChannels.resizePanel, height),
+  panelPainted: () => ipcRenderer.send(bridgeChannels.panelPainted),
+  hidePanel: () => ipcRenderer.send(bridgeChannels.hidePanel),
 }
 
 contextBridge.exposeInMainWorld('wenbu', bridge)

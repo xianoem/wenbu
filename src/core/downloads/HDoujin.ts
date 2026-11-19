@@ -1,5 +1,5 @@
 import { Effect, Option, Schema } from 'effect'
-import { type HDoujinQuality, HDoujinQuality as Qualities } from '#contract/Downloads'
+import { type HDoujinQuality, HDoujinQuality as Qualities, sourceHosts } from '#contract/Downloads'
 import {
   expectOk,
   type GallerySource,
@@ -112,8 +112,7 @@ const fetchFormats = Effect.fnUntraced(function* (id: string, key: string, conte
 
 export const HDoujin: GallerySource = {
   id: 'hdoujin',
-  matches: (url) =>
-    /^(www\.)?hdoujin\.(org|net)$/i.test(url.hostname) && galleryPattern.test(url.pathname),
+  matches: (url) => sourceHosts.hdoujin.test(url.hostname) && galleryPattern.test(url.pathname),
   pageConcurrency: 3,
   signIn: {
     url: 'https://hdoujin.org/',

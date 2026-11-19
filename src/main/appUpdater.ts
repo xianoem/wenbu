@@ -5,6 +5,8 @@ import { UpdateStatus } from '#contract/Updates'
 import type { MainLog } from './mainLog'
 import { afterUpdaterEvent, type UpdaterEvent } from './updateProgress'
 
+export type CheckResult = 'available' | 'current' | 'failed' | 'unsupported'
+
 interface AppUpdaterOptions {
   readonly log: MainLog
   readonly onStatus: (status: UpdateStatus) => void
@@ -27,7 +29,12 @@ export const appUpdater = (options: AppUpdaterOptions) => {
   const current = () => status
 
   if (!app.isPackaged) {
-    return { status: current, install: () => {}, run: Effect.void }
+    return {
+      status: current,
+      install: () => {},
+      run: Effect.void,
+      checkNow: (): Promise<CheckResult> => Promise.resolve('unsupported'),
+    }
   }
 
   const { autoUpdater } = electronUpdater
@@ -66,5 +73,10 @@ export const appUpdater = (options: AppUpdaterOptions) => {
       }
     },
     run: Effect.repeat(check, Schedule.spaced('4 hours')),
+    checkNow: (): Promise<CheckResult> =>
+      autoUpdater.checkForUpdates().then(
+        (result) => (result?.isUpdateAvailable === true ? 'available' : 'current'),
+        () => 'failed',
+      ),
   }
 }

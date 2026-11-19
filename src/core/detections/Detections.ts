@@ -108,6 +108,7 @@ export class Detections extends Context.Service<
   {
     readonly state: Stream.Stream<DetectionsState>
     readonly settings: Effect.Effect<DetectionSettings>
+    readonly settingsChanges: Stream.Stream<DetectionSettings>
     readonly saveSettings: (
       settings: DetectionSettings,
     ) => Effect.Effect<DetectionSettings, DetectionError>
@@ -139,7 +140,7 @@ export class Detections extends Context.Service<
         .get('detections')
         .pipe(Effect.orElseSucceed(() => defaultDetectionSettings))
 
-      const settingsRef = yield* Ref.make(savedSettings)
+      const settingsRef = yield* SubscriptionRef.make(savedSettings)
 
       const history = yield* SqlSchema.findAll({
         Request: Schema.Number,
@@ -181,7 +182,7 @@ export class Detections extends Context.Service<
       ) {
         const clean = yield* sanitize(settings)
 
-        yield* Ref.set(settingsRef, clean)
+        yield* SubscriptionRef.set(settingsRef, clean)
         yield* Effect.orDie(store.set('detections', clean))
 
         const current = yield* Ref.get(jobs)
@@ -197,7 +198,7 @@ export class Detections extends Context.Service<
       })
 
       const waitForLensSlot: Effect.Effect<void> = Effect.gen(function* () {
-        const limit = (yield* Ref.get(settingsRef)).cloudRequestsPerMinute
+        const limit = (yield* SubscriptionRef.get(settingsRef)).cloudRequestsPerMinute
         const time = yield* Clock.currentTimeMillis
 
         const wait = yield* Ref.modify(lensRequests, (requests) => {
@@ -299,7 +300,7 @@ export class Detections extends Context.Service<
           return yield* invalid('image', 'The image could not be read.')
         }
 
-        const settings = yield* Ref.get(settingsRef)
+        const settings = yield* SubscriptionRef.get(settingsRef)
         const id = yield* Effect.orDie(crypto.randomUUIDv7())
         const pending: PendingDetection = { id, input, startedAt: yield* now }
 
@@ -369,7 +370,7 @@ export class Detections extends Context.Service<
       })
 
       const detectClipboard = Effect.fn('Detections.detectClipboard')(function* (image: RgbaImage) {
-        const settings = yield* Ref.get(settingsRef)
+        const settings = yield* SubscriptionRef.get(settingsRef)
 
         if (!settings.listenToClipboard || settings.engineId === undefined) {
           return Option.none()
@@ -390,11 +391,11 @@ export class Detections extends Context.Service<
       yield* (yield* PresetReferences).register({
         area: 'Detections',
         uses: (presetIds) =>
-          Effect.map(Ref.get(settingsRef), (settings) =>
+          Effect.map(SubscriptionRef.get(settingsRef), (settings) =>
             presetIds.has(settings.translation.presetId),
           ),
         clear: (presetIds) =>
-          Effect.flatMap(Ref.get(settingsRef), (settings) =>
+          Effect.flatMap(SubscriptionRef.get(settingsRef), (settings) =>
             presetIds.has(settings.translation.presetId)
               ? Effect.orDie(
                   saveSettings({
@@ -408,7 +409,8 @@ export class Detections extends Context.Service<
 
       return Detections.of({
         state,
-        settings: Ref.get(settingsRef),
+        settings: SubscriptionRef.get(settingsRef),
+        settingsChanges: SubscriptionRef.changes(settingsRef),
         saveSettings,
         detect,
         detectClipboard,

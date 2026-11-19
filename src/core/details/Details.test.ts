@@ -6,6 +6,7 @@ import { KeyValueStore } from 'effect/persistence'
 import { RpcTest } from 'effect/rpc'
 import { SqlClient } from 'effect/sql'
 import { defaultDetailsSettings, DetailsRpc, type ListedWork } from '#contract/Details'
+import { Background } from '../background/Background'
 import { Games } from '../library/Games'
 import { LlmClient } from '../llm/LlmClient'
 import * as Database from '../platform/Database'
@@ -128,6 +129,7 @@ const setup = Effect.gen(function* () {
 
   const layer = DetailsRpcLive.pipe(
     Layer.provideMerge(Layer.mergeAll(DetailsStore.layer, Games.layer, LlmFake)),
+    Layer.provide(Background.layer),
     Layer.provide(DLsite.layer.pipe(Layer.provide(http))),
     Layer.provide(Layer.succeed(DLsitePacing)({ gap: 0, retry: 0 })),
     Layer.provide(KeyValueStore.layerMemory),

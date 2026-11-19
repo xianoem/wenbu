@@ -21,12 +21,14 @@ import { RpcTest } from 'effect/rpc'
 import { defaultMangaSettings, MangaRpc, type MangaRun, type MangaSettings } from '#contract/Manga'
 import type { Plugin } from '#contract/Plugins'
 import { NotEnoughSpace, reserveBytes } from '#contract/Storage'
+import { Background } from '../background/Background'
 import { type CompletionRequest, LlmClient } from '../llm/LlmClient'
 import { PresetReferences } from '../llm/PresetReferences'
 import * as Database from '../platform/Database'
 import { DiskSpace } from '../platform/DiskSpace'
 import { Plugins } from '../plugins/Plugins'
 import { MangaRpcLive, recentPages } from './Manga'
+import { MangaTranslation } from './MangaTranslation'
 import { MangaRuntime } from './MangaRuntime'
 
 const fakeWorker = fileURLToPath(new URL('./__fixtures__/fake-worker.mjs', import.meta.url))
@@ -131,6 +133,8 @@ const setup = Effect.fn(function* (
 
   const layer = MangaRpcLive.pipe(
     Layer.provideMerge(PresetReferences.layer),
+    Layer.provideMerge(Background.layer),
+    Layer.provideMerge(MangaTranslation.layer),
     Layer.provide(
       Layer.mergeAll(llm, plugins, runtime, DiskSpace.fixed(options.freeBytes ?? 100 * 1024 ** 3)),
     ),
@@ -165,6 +169,7 @@ const setup = Effect.fn(function* (
     settle,
     withPreset,
     references: Context.get(context, PresetReferences),
+    background: Context.get(context, Background),
     store: Context.get(context, KeyValueStore.KeyValueStore),
   }
 })
@@ -326,6 +331,22 @@ describe('Manga', () => {
 
       expect(sent[0]?.system).toContain('into English')
       expect(run.usage).toEqual({ inputTokens: 30, outputTokens: 15, costUsd: 0.03 })
+    }),
+  )
+
+  test(
+    'tells the user when a run finishes',
+    Effect.gen(function* () {
+      const { client, folder, settle, withPreset, background } = yield* setup()
+      const notices = yield* background.notices
+
+      yield* withPreset()
+      yield* settle(yield* client.startMangaRun({ folder }))
+
+      const [shown] = yield* notices.pipe(Stream.take(1), Stream.runCollect)
+
+      expect(shown?.title).toMatch(/is translated$/)
+      expect(shown?.body).toBe('3 of 3 pages')
     }),
   )
 

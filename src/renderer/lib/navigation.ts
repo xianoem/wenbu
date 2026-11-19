@@ -18,6 +18,7 @@ export const Screen = Schema.Literals([
 export type Screen = typeof Screen.Type
 
 export const SettingsPage = Schema.Literals([
+  'general',
   'models',
   'translation',
   'overlay',

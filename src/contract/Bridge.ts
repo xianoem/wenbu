@@ -1,3 +1,4 @@
+import type { AppTarget, CloseAction } from './Background'
 import type { CoreStopped } from './CoreStopped'
 import type { WindowAction } from './WindowAction'
 
@@ -18,6 +19,21 @@ export interface WenbuBridge {
   /** Main writes it, not core: it must work when core is gone. */
   readonly exportDiagnostics: () => Promise<string | undefined>
   readonly openLogsFolder: () => void
+  readonly openApp: (target?: AppTarget) => void
+  readonly onNavigate: (listener: (target: AppTarget) => void) => () => void
+  readonly onCloseAsked: (listener: () => void) => () => void
+  readonly closeWith: (action: CloseAction) => void
+  /** Main quits at once when nothing runs, and otherwise asks the window that asked. */
+  readonly quit: (confirmed: boolean) => void
+  readonly onQuitAsked: (listener: () => void) => () => void
+  readonly onPanelShown: (listener: (shown: PanelShown) => void) => () => void
+  readonly resizePanel: (height: number) => void
+  readonly panelPainted: () => void
+  readonly hidePanel: () => void
+}
+
+export interface PanelShown {
+  readonly link?: string
 }
 
 export const bridgeChannels = {
@@ -36,4 +52,14 @@ export const bridgeChannels = {
   relaunch: 'wenbu:relaunch',
   exportDiagnostics: 'wenbu:export-diagnostics',
   openLogsFolder: 'wenbu:open-logs-folder',
+  openApp: 'wenbu:open-app',
+  navigate: 'wenbu:navigate',
+  closeAsked: 'wenbu:close-asked',
+  closeWith: 'wenbu:close-with',
+  quit: 'wenbu:quit',
+  quitAsked: 'wenbu:quit-asked',
+  panelShown: 'wenbu:panel-shown',
+  resizePanel: 'wenbu:resize-panel',
+  panelPainted: 'wenbu:panel-painted',
+  hidePanel: 'wenbu:hide-panel',
 } as const

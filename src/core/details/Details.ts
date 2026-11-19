@@ -9,6 +9,7 @@ import {
   Path,
   Ref,
   Result,
+  Schedule,
   Schema,
   SubscriptionRef,
 } from 'effect'
@@ -31,6 +32,7 @@ import {
 } from '#contract/Details'
 import type { Game } from '#contract/Library'
 import { defaultTranslationSettings, TranslationSettings } from '#contract/GameTranslation'
+import { Background } from '../background/Background'
 import { Games } from '../library/Games'
 import { LlmClient } from '../llm/LlmClient'
 import * as SettingsStore from '../platform/SettingsStore'
@@ -93,6 +95,7 @@ const listKey = (
 export const DetailsRpcLive = DetailsRpc.toLayer(
   Effect.gen(function* () {
     const store = yield* DetailsStore
+    const background = yield* Background
     const site = yield* DLsite
     const games = yield* Games
     const llm = yield* LlmClient
@@ -443,6 +446,13 @@ export const DetailsRpcLive = DetailsRpc.toLayer(
 
         if (Option.isSome(released)) {
           yield* store.markReleased(work.code, released.value.releasedOn)
+
+          yield* background.notify({
+            kind: 'releases',
+            title: `${work.title} is out`,
+            body: `Released on ${released.value.releasedOn}`,
+            buttons: [],
+          })
         }
       }
     })
@@ -499,6 +509,22 @@ export const DetailsRpcLive = DetailsRpc.toLayer(
         filters,
       }
     })
+
+    // Only while a watched work is still unreleased; the upcoming list says which came out.
+    const watchReleases = Effect.gen(function* () {
+      const waiting = (yield* store.watched).some((work) => Option.isNone(work.releasedOn))
+
+      if (waiting) {
+        yield* cachedList('upcoming', 'day')
+      }
+    })
+
+    yield* watchReleases.pipe(
+      Effect.delay('5 minutes'),
+      Effect.repeat(Schedule.spaced('6 hours')),
+      Effect.annotateLogs({ feature: 'details' }),
+      Effect.forkScoped,
+    )
 
     return DetailsRpc.of({
       gameDetails: ({ gameId }) => Effect.map(detailsOf(gameId), Option.getOrNull),

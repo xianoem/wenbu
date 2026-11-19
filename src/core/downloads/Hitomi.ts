@@ -1,4 +1,5 @@
 import { Effect, Option, Schema } from 'effect'
+import { sourceHosts } from '#contract/Downloads'
 import {
   expectOk,
   type GallerySource,
@@ -97,7 +98,7 @@ const fetchServers = Effect.fnUntraced(function* (context: SourceContext) {
 
 export const Hitomi: GallerySource = {
   id: 'hitomi',
-  matches: (url) => /^(www\.)?hitomi\.la$/i.test(url.hostname) && galleryPattern.test(url.pathname),
+  matches: (url) => sourceHosts.hitomi.test(url.hostname) && galleryPattern.test(url.pathname),
   pageConcurrency: 3,
   resolve: (url, context) =>
     Effect.gen(function* () {

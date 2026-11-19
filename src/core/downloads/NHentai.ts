@@ -1,4 +1,5 @@
 import { Effect, Option, Schema } from 'effect'
+import { sourceHosts } from '#contract/Downloads'
 import { expectOk, type GallerySource, readJson, send, type SourceContext } from './GallerySource'
 import { nonEmpty } from '../platform/Text'
 
@@ -32,8 +33,7 @@ const imageUrl = (number: number, path: string) =>
 
 export const NHentai: GallerySource = {
   id: 'nhentai',
-  matches: (url) =>
-    /^(www\.)?nhentai\.net$/i.test(url.hostname) && galleryPattern.test(url.pathname),
+  matches: (url) => sourceHosts.nhentai.test(url.hostname) && galleryPattern.test(url.pathname),
   pageConcurrency: 3,
   resolve: (url, context) =>
     Effect.gen(function* () {
