@@ -1,5 +1,16 @@
 [
   {
+    "version": "0.5.0",
+    "date": "2026-11-19",
+    "changes": [
+      {
+        "kind": "new",
+        "area": "app",
+        "text": "Keep Wenbu running in the tray"
+      }
+    ]
+  },
+  {
     "version": "0.4.1",
     "date": "2026-11-18",
     "changes": [
