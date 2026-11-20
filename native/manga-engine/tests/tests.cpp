@@ -461,6 +461,8 @@ struct CleanScene {
     std::vector<uint8_t> mask;
     engine::CleanBlock bubble;
     engine::CleanBlock art;
+    engine::CleanBlock outlined;
+    engine::CleanBlock shaded;
 };
 
 CleanScene cleanScene() {
@@ -477,6 +479,23 @@ CleanScene cleanScene() {
         cv::rectangle(mask, cv::Rect(x - 1, 174, 8, 52), cv::Scalar(255), -1);
     }
 
+    for (int y = 60; y < 340; y++) {
+        const int tone = 205 + (y - 60) * 50 / 280;
+
+        cv::line(image, {260, y}, {410, y}, cv::Scalar(tone, tone, tone));
+    }
+
+    for (const int x : {310, 330, 350, 435, 455, 475}) {
+        const int top = x < 400 ? 175 : 300;
+
+        if (x > 400) {
+            cv::rectangle(image, cv::Rect(x - 6, top - 6, 18, 52), cv::Scalar(255, 255, 255), -1);
+        }
+
+        cv::rectangle(image, cv::Rect(x, top, 6, 40), cv::Scalar(0, 0, 0), -1);
+        cv::rectangle(mask, cv::Rect(x - 1, top - 1, 8, 42), cv::Scalar(255), -1);
+    }
+
     // A closing mark the detector's box missed, joined to the block's text in the mask.
     cv::rectangle(image, cv::Rect(190, 190, 5, 20), cv::Scalar(0, 0, 0), -1);
     cv::rectangle(mask, cv::Rect(189, 189, 7, 22), cv::Scalar(255), -1);
@@ -491,6 +510,8 @@ CleanScene cleanScene() {
     scene.bubble.fill = true;
     scene.art.box = {430, 170, 486, 230};
     scene.art.fill = true;
+    scene.outlined.box = {430, 295, 486, 345};
+    scene.shaded.box = {305, 170, 361, 220};
 
     return scene;
 }
@@ -542,12 +563,24 @@ void cleanPages() {
 
     check(reach[1] == scene.art.box && pixel(marked, 192, 200) == std::array<int, 3>{255, 255, 255},
           "cleans the text a block's box missed but its mask joins");
+    check(engine::holdsBlock(page, scene.bubble.box), "fills a block that sits wholly in a bubble of flat paper");
+    check(engine::bubbleAround(page, scene.outlined.box) && !engine::holdsBlock(page, scene.outlined.box), "inpaints outlined text on the art, whose halo is no bubble");
+    check(engine::bubbleAround(page, scene.shaded.box) && !engine::holdsBlock(page, scene.shaded.box), "inpaints text on shaded paper, which one colour cannot fill");
 
-    const std::array<double, 4> second = {150, 260, 176, 290};
+    const auto shade = [](const engine::Rgb& image, const std::vector<uint8_t>& mask) {
+        engine::Rgb painted = image;
 
-    check(engine::ownTextAreas(page, {scene.bubble.box})[0].has_value() &&
-              !engine::ownTextAreas(page, {scene.bubble.box, second})[0].has_value(),
-          "letters in a bubble's text area only when the bubble holds no other block");
+        for (size_t p = 0; p < mask.size(); p++) {
+            if (mask[p] > 0) {
+                std::fill_n(painted.data.begin() + static_cast<long>(p * 3), 3, uint8_t{240});
+            }
+        }
+
+        return painted;
+    };
+    const engine::Rgb shaded = engine::cleanPage(page, scene.mask, {scene.shaded}, shade);
+
+    check(pixel(shaded, 312, 200) == std::array<int, 3>{240, 240, 240}, "keeps the shading LaMa paints back on paper it inpainted");
 }
 
 void inpaintCrops(const std::filesystem::path& fixtures) {

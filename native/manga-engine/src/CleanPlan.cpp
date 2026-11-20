@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <iterator>
 #include <limits>
 
 #include <opencv2/imgproc.hpp>
@@ -21,6 +22,9 @@ constexpr std::array<double, 2> bubbleInset = {0.06, 0.05};
 constexpr int patchRing = 12;
 constexpr float grainLimit = 10;
 constexpr double patchTone = 14;
+constexpr double heldCover = 0.98;
+constexpr int flatTone = 8;
+constexpr double flatShare = 0.9;
 
 // cv2.dilate with a 3x3 square, `iterations` times: one square of side 2 * iterations + 1, with nothing
 // added from outside the image.
@@ -334,6 +338,44 @@ std::optional<Bubble> bubbleAround(const CleanPage& page, const std::array<doubl
     return Bubble{grown, {medianByte(channels[0]), medianByte(channels[1]), medianByte(channels[2])}};
 }
 
+bool holdsBlock(const CleanPage& page, const std::array<double, 4>& box) {
+    const std::optional<Bubble> around = bubbleAround(page, box);
+
+    if (!around) {
+        return false;
+    }
+
+    const Region& bubble = around->bubble;
+    const auto [x1, y1, x2, y2] = clipped(box, page.rgb.width, page.rgb.height);
+    long long covered = 0;
+
+    for (int y = y1; y < y2; y++) {
+        for (int x = x1; x < x2; x++) {
+            covered += at(bubble, x, y) > 0 ? 1 : 0;
+        }
+    }
+
+    if (covered < static_cast<long long>(x2 - x1) * (y2 - y1) * heldCover) {
+        return false;
+    }
+
+    std::vector<uint8_t> tones;
+
+    for (int row = 0; row < bubble.h(); row++) {
+        for (int column = 0; column < bubble.w(); column++) {
+            if (bubble.data.at<uint8_t>(row, column) > 0 && page.paper.at<uint8_t>(bubble.y + row, bubble.x + column) > 0) {
+                tones.push_back(page.gray.at<uint8_t>(bubble.y + row, bubble.x + column));
+            }
+        }
+    }
+
+    std::vector<uint8_t> sorted = tones;
+    const int middle = medianByte(sorted);
+    const auto near = std::count_if(tones.begin(), tones.end(), [&](uint8_t tone) { return std::abs(tone - middle) <= flatTone; });
+
+    return near >= static_cast<double>(tones.size()) * flatShare;
+}
+
 Plan cleanPlan(const CleanPage& page, const std::vector<uint8_t>& scan, const std::vector<CleanBlock>& blocks,
                const std::optional<Rgb>& brush) {
     const int width = page.rgb.width;
@@ -438,7 +480,11 @@ Rgb cleanPage(const CleanPage& page, const std::vector<uint8_t>& scan, const std
         return plan.filled;
     }
 
-    return settlePaper(page, inpaint(plan.filled, plan.inpaint), blocks, plan.inpaint);
+    std::vector<CleanBlock> filled;
+
+    std::copy_if(blocks.begin(), blocks.end(), std::back_inserter(filled), [](const CleanBlock& block) { return block.fill; });
+
+    return settlePaper(page, inpaint(plan.filled, plan.inpaint), filled, plan.inpaint);
 }
 
 std::optional<std::array<int, 4>> textArea(const CleanPage& page, const std::array<double, 4>& box) {
@@ -510,31 +556,6 @@ std::vector<std::array<double, 4>> textReach(const std::vector<uint8_t>& mask, i
     }
 
     return reached;
-}
-
-std::vector<std::optional<std::array<int, 4>>> ownTextAreas(const CleanPage& page, const std::vector<std::array<double, 4>>& boxes) {
-    std::vector<std::optional<std::array<int, 4>>> areas;
-
-    for (size_t index = 0; index < boxes.size(); index++) {
-        std::optional<std::array<int, 4>> area = textArea(page, boxes[index]);
-
-        const auto inside = [&](const std::array<double, 4>& other) {
-            const double x = (other[0] + other[2]) / 2;
-            const double y = (other[1] + other[3]) / 2;
-
-            return x >= (*area)[0] && x < (*area)[2] && y >= (*area)[1] && y < (*area)[3];
-        };
-
-        for (size_t other = 0; area && other < boxes.size(); other++) {
-            if (other != index && inside(boxes[other])) {
-                area.reset();
-            }
-        }
-
-        areas.push_back(area);
-    }
-
-    return areas;
 }
 
 Rgb blendPatch(const Rgb& base, const Rgb& inpainted, const std::vector<uint8_t>& mask) {

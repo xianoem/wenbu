@@ -116,8 +116,8 @@ std::array<double, 4> boxOf(const FoundBlock& found) {
     return {static_cast<double>(x1), static_cast<double>(y1), static_cast<double>(x2), static_cast<double>(y2)};
 }
 
-std::vector<CleanBlock> fillBlocks(const Found& found, const std::vector<std::array<double, 4>>& boxes, const Rgb& page) {
-    const std::vector<std::array<double, 4>> reach = textReach(found.mask, page.width, page.height, boxes);
+std::vector<CleanBlock> fillBlocks(const Found& found, const std::vector<std::array<double, 4>>& boxes, const CleanPage& page) {
+    const std::vector<std::array<double, 4>> reach = textReach(found.mask, page.rgb.width, page.rgb.height, boxes);
     std::vector<CleanBlock> cleaning;
 
     for (size_t index = 0; index < found.blocks.size(); index++) {
@@ -125,7 +125,7 @@ std::vector<CleanBlock> fillBlocks(const Found& found, const std::vector<std::ar
 
         block.box = boxes[index];
         block.reach = reach[index];
-        block.fill = true;
+        block.fill = holdsBlock(page, boxes[index]);
         block.fg = found.blocks[index].colours.fg;
         block.bg = found.blocks[index].colours.bg;
         cleaning.push_back(block);
@@ -267,11 +267,10 @@ RunResult Runner::run(const std::vector<RunPage>& pages, const RunSettings& sett
             boxes.push_back(boxOf(block));
         }
 
-        const std::vector<CleanBlock> cleaning = fillBlocks(found, boxes, original);
+        const std::vector<CleanBlock> cleaning = fillBlocks(found, boxes, paper);
         const Rgb cleaned = cleanPage(paper, found.mask, cleaning, [&](const Rgb& image, const std::vector<uint8_t>& mask) {
             return inpainter_.inpaint(image, mask, {settings.inpaintingSize, settings.wholePage});
         });
-        const std::vector<std::optional<std::array<int, 4>>> areas = ownTextAreas(paper, boxes);
 
         stage(index, "lettering");
 
@@ -291,13 +290,6 @@ RunResult Runner::run(const std::vector<RunPage>& pages, const RunSettings& sett
             letter.region.angle = block.block.angle;
             letter.fg = block.colours.fg;
             letter.bg = block.colours.bg;
-
-            if (const std::optional<std::array<int, 4>>& area = areas[at]) {
-                letter.region.textBox = std::array<double, 4>{static_cast<double>((*area)[0]), static_cast<double>((*area)[1]),
-                                                              static_cast<double>((*area)[2]), static_cast<double>((*area)[3])};
-                letter.lettering = LetterSettings{};
-            }
-
             blocks.push_back(letter);
         }
 

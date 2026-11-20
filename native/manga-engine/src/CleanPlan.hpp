@@ -58,6 +58,9 @@ std::array<int, 4> clipped(const std::array<double, 4>& box, int width, int heig
 // bubble_around: the paper-coloured area the block sits in, if it is a bubble and not the page.
 std::optional<Bubble> bubbleAround(const CleanPage& page, const std::array<double, 4>& box);
 
+// Whether the block sits wholly in a bubble of flat paper, so its text can be filled with one colour.
+bool holdsBlock(const CleanPage& page, const std::array<double, 4>& box);
+
 struct Plan {
     Rgb filled;
     std::vector<uint8_t> inpaint;
@@ -84,10 +87,6 @@ std::optional<std::array<int, 4>> textArea(const CleanPage& page, const std::arr
 // Each box grown over the parts of the mask it touches, so a mark the detector's box missed is still cleaned.
 std::vector<std::array<double, 4>> textReach(const std::vector<uint8_t>& mask, int width, int height,
                                              const std::vector<std::array<double, 4>>& boxes);
-
-// Each box's text area, kept only when its bubble holds no other box: a frame around a whole page of
-// narration is no bubble to letter in.
-std::vector<std::optional<std::array<int, 4>>> ownTextAreas(const CleanPage& page, const std::vector<std::array<double, 4>>& boxes);
 
 // blend_patch: a brushed patch takes the tone of the ring around it and the paper grain from beside it.
 Rgb blendPatch(const Rgb& base, const Rgb& inpainted, const std::vector<uint8_t>& mask);
