@@ -1,5 +1,16 @@
 [
   {
+    "version": "0.5.1",
+    "date": "2026-11-20",
+    "changes": [
+      {
+        "kind": "fixed",
+        "area": "manga",
+        "text": "Clean text on the art and keep lettering inside bubbles"
+      }
+    ]
+  },
+  {
     "version": "0.5.0",
     "date": "2026-11-19",
     "changes": [
