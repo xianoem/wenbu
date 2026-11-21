@@ -40,6 +40,7 @@ import { LocalePill } from './components/LocalePill'
 import { CgPackDialog } from './components/CgPackDialog'
 import { EditGameDialog } from './components/EditGameDialog'
 import { GameCover, useGameCover } from './components/GameCover'
+import { LaunchProblemCard } from './components/LaunchProblemCard'
 import { RemoveGameDialog } from './components/RemoveGameDialog'
 import { TranslationPanel } from './components/TranslationPanel'
 import { GameUpdateCard } from '../translation/GameUpdateCard'
@@ -270,6 +271,8 @@ export function GamePage({ game }: { readonly game: Game }) {
           {launchError}
         </p>
       )}
+
+      <LaunchProblemCard game={game} />
 
       {game.notes === undefined ? null : (
         <p className="mt-4 text-sm whitespace-pre-wrap text-muted-foreground">{game.notes}</p>

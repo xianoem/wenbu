@@ -11,14 +11,24 @@ import {
   Path,
   Schedule,
   Scope,
+  Stream,
+  SubscriptionRef,
 } from 'effect'
 import { ChildProcess, ChildProcessSpawner } from 'effect/process'
-import { type Game, LibraryError, type StartLocale, startLocaleOf } from '#contract/Library'
+import {
+  type Game,
+  type GameProgram,
+  LibraryError,
+  type LaunchProblem,
+  type StartLocale,
+  startLocaleOf,
+} from '#contract/Library'
 import { matchGameProcesses } from '../overlay/GameProcesses'
 import { LunaHookHost } from '../overlay/LunaHookHost'
 import { localeTools, machineOf } from '../plugins/definitions/LunaHook'
 import { Plugins } from '../plugins/Plugins'
 import { Games } from './Games'
+import { isToolProgram, listPrograms } from './GamePrograms'
 import { LaunchAlias } from './LaunchAlias'
 
 export interface Launch {
@@ -80,9 +90,18 @@ export const japaneseProfile = (config: string) => {
 const secondsSince = (startedAt: number) =>
   Effect.map(Clock.currentTimeMillis, (now) => Math.max(1, Math.round((now - startedAt) / 1000)))
 
+/** A game that closes this soon after starting most likely never ran. */
+const quickExitSeconds = 15
+
+const samePath = (left: string, right: string) => left.toLowerCase() === right.toLowerCase()
+
 export class GameLauncher extends Context.Service<
   GameLauncher,
-  { readonly launch: (id: string) => Effect.Effect<Launch, LibraryError> }
+  {
+    readonly launch: (id: string) => Effect.Effect<Launch, LibraryError>
+    readonly problem: (id: string) => Stream.Stream<Option.Option<LaunchProblem>>
+    readonly dismissProblem: (id: string) => Effect.Effect<void>
+  }
 >()('wenbu/core/library/GameLauncher') {
   static readonly layerWith = (timing: LaunchTiming) =>
     Layer.effect(
@@ -97,6 +116,53 @@ export class GameLauncher extends Context.Service<
         const hooks = yield* LaunchHooks
         const aliases = yield* LaunchAlias
         const layerScope = yield* Scope.Scope
+        const files = yield* Effect.context<FileSystem.FileSystem | Path.Path>()
+        const problems = yield* SubscriptionRef.make<ReadonlyMap<string, LaunchProblem>>(new Map())
+
+        const setProblem = (id: string, problem: LaunchProblem | undefined) =>
+          SubscriptionRef.update(problems, (current) => {
+            const next = new Map(current)
+
+            if (problem === undefined) {
+              next.delete(id)
+            } else {
+              next.set(id, problem)
+            }
+
+            return next
+          })
+
+        const diagnose = Effect.fnUntraced(function* (game: Game, exit: GameExit) {
+          const tool = isToolProgram(path, game.executablePath)
+
+          if (!exit.found || (exit.seconds > quickExitSeconds && !tool)) {
+            return undefined
+          }
+
+          const programs = yield* listPrograms(game.folderPath, game.title).pipe(
+            Effect.provideContext(files),
+            Effect.orElseSucceed((): ReadonlyArray<GameProgram> => []),
+          )
+
+          const suggestion = programs.find(
+            (program) => !program.tool && !samePath(program.path, game.executablePath),
+          )
+
+          if (suggestion === undefined) {
+            return undefined
+          }
+
+          const program = programs.find((candidate) =>
+            samePath(candidate.path, game.executablePath),
+          ) ?? {
+            path: game.executablePath,
+            name: path.basename(game.executablePath),
+            sizeBytes: 0,
+            tool,
+          }
+
+          return { seconds: exit.seconds, program, suggestion } satisfies LaunchProblem
+        })
 
         const toolPath = (folder: string, relative: string) =>
           path.join(folder, ...relative.split('/'))
@@ -247,6 +313,7 @@ export class GameLauncher extends Context.Service<
 
           yield* Effect.orDie(Effect.asVoid(handle.unref))
           yield* games.recordLaunch(id)
+          yield* setProblem(id, undefined)
 
           yield* Effect.logInfo('Game launched').pipe(
             Effect.annotateLogs({
@@ -278,6 +345,9 @@ export class GameLauncher extends Context.Service<
               Effect.map(secondsSince(startedAt), (seconds): GameExit => ({ seconds, found })),
             ),
             Effect.tap((exit) => (exit.found ? games.recordPlay(id, exit.seconds) : Effect.void)),
+            Effect.tap((exit) =>
+              Effect.flatMap(diagnose(game, exit), (problem) => setProblem(id, problem)),
+            ),
             Effect.tap((exit) =>
               Effect.logInfo('Game exited').pipe(
                 Effect.annotateLogs({
@@ -311,7 +381,18 @@ export class GameLauncher extends Context.Service<
           return launch
         })
 
-        return GameLauncher.of({ launch })
+        const problem = (id: string) =>
+          SubscriptionRef.changes(problems).pipe(
+            Stream.map((current) => current.get(id)),
+            Stream.changesWith((left, right) => left === right),
+            Stream.map(Option.fromNullishOr),
+          )
+
+        return GameLauncher.of({
+          launch,
+          problem,
+          dismissProblem: (id) => setProblem(id, undefined),
+        })
       }),
     )
 

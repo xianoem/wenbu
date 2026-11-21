@@ -6,6 +6,7 @@ export interface WenbuBridge {
   readonly window: (action: WindowAction) => void
   readonly chooseFolder: () => Promise<string | undefined>
   readonly chooseArchive: () => Promise<string | undefined>
+  readonly chooseProgram: (folder: string) => Promise<string | undefined>
   readonly chooseSavePath: (suggested: string, extension: string) => Promise<string | undefined>
   readonly pathForFile: (file: File) => string
   readonly revealPath: (path: string) => void
@@ -52,6 +53,7 @@ export const bridgeChannels = {
   window: 'wenbu:window',
   chooseFolder: 'wenbu:choose-folder',
   chooseArchive: 'wenbu:choose-archive',
+  chooseProgram: 'wenbu:choose-program',
   chooseSavePath: 'wenbu:choose-save-path',
   revealPath: 'wenbu:reveal-path',
   openExternal: 'wenbu:open-external',

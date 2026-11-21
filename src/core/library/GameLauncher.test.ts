@@ -360,6 +360,45 @@ describe('GameLauncher', () => {
     }).pipe(Effect.scoped, Effect.provide(NodeServices.layer)),
   )
 
+  it.live('suggests the game when its settings tool started and closed instead', () =>
+    Effect.gen(function* () {
+      const { games, launcher, game, exe, path } = yield* setup({ machine: 0x14c, plugin: false })
+      const fs = yield* FileSystem.FileSystem
+      const config = path.join(path.dirname(exe), 'Config.exe')
+
+      const problemNow = Effect.map(
+        Stream.runHead(Stream.take(launcher.problem(game.id), 1)),
+        (latest) => Option.flatten(latest),
+      )
+
+      yield* fs.writeFileString(config, 'MZ')
+
+      const plain = yield* launcher.launch(game.id)
+
+      yield* plain.exited
+
+      expect(yield* problemNow).toEqual(Option.none())
+
+      yield* games.setExecutable(game.id, config)
+
+      const wrong = yield* launcher.launch(game.id)
+
+      yield* wrong.exited
+
+      expect(yield* problemNow).toEqual(
+        Option.some({
+          seconds: 1,
+          program: { path: config, name: 'Config.exe', sizeBytes: 2, tool: true },
+          suggestion: { path: exe, name: 'Game.exe', sizeBytes: 128, tool: false },
+        }),
+      )
+
+      yield* launcher.dismissProblem(game.id)
+
+      expect(yield* problemNow).toEqual(Option.none())
+    }).pipe(Effect.scoped, Effect.provide(NodeServices.layer)),
+  )
+
   it.live("counts play time on the game's own process, not the short-lived locale tool", () =>
     Effect.gen(function* () {
       const { games, launcher, game, running, exe } = yield* setup({

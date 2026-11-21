@@ -80,6 +80,10 @@ export class Games extends Context.Service<
     readonly recordPlay: (id: string, seconds: number) => Effect.Effect<void>
     readonly setTranslation: (id: string, state: TranslationState) => Effect.Effect<void>
     readonly setLocale: (id: string, locale: GameLocale) => Effect.Effect<Game, LibraryError>
+    readonly setExecutable: (
+      id: string,
+      executablePath: string,
+    ) => Effect.Effect<Game, LibraryError>
     readonly localeUnchecked: Effect.Effect<ReadonlyArray<Game>>
     readonly setNeedsJapaneseLocale: (id: string, needed: boolean) => Effect.Effect<void>
   }
@@ -242,6 +246,19 @@ export class Games extends Context.Service<
         return yield* get(id)
       })
 
+      const setExecutable = Effect.fn('Games.setExecutable')(function* (
+        id: string,
+        executablePath: string,
+      ) {
+        yield* get(id)
+
+        yield* Effect.orDie(
+          sql`UPDATE games SET ${sql.update({ executable_path: executablePath, needs_japanese_locale: null })} WHERE id = ${id}`,
+        )
+
+        return yield* get(id)
+      })
+
       const unchecked = SqlSchema.findAll({
         Request: Schema.Void,
         Result: GameRow,
@@ -265,6 +282,7 @@ export class Games extends Context.Service<
         recordPlay,
         setTranslation,
         setLocale,
+        setExecutable,
         localeUnchecked: Effect.map(Effect.orDie(unchecked()), (rows) => rows.map(toGame)),
         setNeedsJapaneseLocale,
       })

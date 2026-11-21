@@ -24,6 +24,26 @@ export const launchGameAtom = Core.mutation('launchGame')
 
 export const setLaunchLocaleAtom = Core.mutation('setLaunchLocale')
 
+export const gameProgramsAtom = Atom.family((id: string) =>
+  Core.query('listGamePrograms', { id }, { reactivityKeys: libraryKeys }),
+)
+
+export const setGameProgramAtom = Core.mutation('setGameProgram')
+
+export const launchProblemAtom = Atom.family((id: string) =>
+  Core.runtime.atom(
+    Stream.unwrap(
+      Effect.gen(function* () {
+        const client = yield* Core
+
+        return client('watchLaunchProblem', { id })
+      }),
+    ),
+  ),
+)
+
+export const dismissLaunchProblemAtom = Core.mutation('dismissLaunchProblem')
+
 export const createCgPackAtom = Core.mutation('createCgPack')
 
 export const imageFoldersAtom = Atom.family((id: string) => Core.query('listImageFolders', { id }))

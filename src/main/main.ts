@@ -931,6 +931,22 @@ ipcMain.handle(bridgeChannels.chooseArchive, async (event) => {
   return result.canceled ? undefined : result.filePaths[0]
 })
 
+ipcMain.handle(bridgeChannels.chooseProgram, async (event, folder) => {
+  const window = BrowserWindow.fromWebContents(event.sender)
+
+  const options: Electron.OpenDialogOptions = {
+    properties: ['openFile'],
+    filters: [{ name: 'Programs', extensions: ['exe'] }],
+    ...(Predicate.isString(folder) ? { defaultPath: folder } : {}),
+  }
+
+  const result = await (window === null
+    ? dialog.showOpenDialog(options)
+    : dialog.showOpenDialog(window, options))
+
+  return result.canceled ? undefined : result.filePaths[0]
+})
+
 ipcMain.handle(bridgeChannels.chooseSavePath, async (event, suggested, extension) => {
   if (!Predicate.isString(suggested) || !Predicate.isString(extension)) {
     return undefined

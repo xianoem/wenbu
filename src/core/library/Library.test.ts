@@ -91,6 +91,109 @@ describe('Library', () => {
     }).pipe(Effect.scoped, Effect.provide(TestLayer)),
   )
 
+  it.effect('launches the game rather than the tools shipped beside it', () =>
+    Effect.gen(function* () {
+      const library = yield* client
+      const fs = yield* FileSystem.FileSystem
+      const path = yield* Path.Path
+
+      const launcherOf = Effect.fnUntraced(function* (programs: ReadonlyArray<string>) {
+        const folder = yield* fs.makeTempDirectoryScoped({ prefix: 'wenbu-game-' })
+
+        yield* Effect.forEach(programs, (program) =>
+          fs
+            .makeDirectory(path.dirname(path.join(folder, program)), { recursive: true })
+            .pipe(Effect.andThen(fs.writeFileString(path.join(folder, program), 'MZ'))),
+        )
+
+        const candidate = yield* library.inspectFolder({ path: folder })
+
+        return path.relative(folder, candidate.executablePath)
+      })
+
+      const launchers = yield* Effect.forEach(
+        [
+          ['Config.exe', 'Game.exe', 'WolfTL.exe'],
+          ['UnityCrashHandler64.exe', 'VoyageOfLust.exe'],
+          ['Armored Suit EN v1.04 Installer.exe', 'Game.exe'],
+          ['ファイル破損チェックツール.exe', '鬼監督と俺の彼女.exe'],
+          ['エンジン設定.exe', 'メイン.exe'],
+          ['TSUMAKAN_INST.exe', path.join('TSUMAKAN', 'TSUMAKAN.exe')],
+          ['ResetConfig.exe'],
+        ],
+        (programs) => launcherOf(programs),
+      )
+
+      expect(launchers).toEqual([
+        'Game.exe',
+        'VoyageOfLust.exe',
+        'Game.exe',
+        '鬼監督と俺の彼女.exe',
+        'メイン.exe',
+        path.join('TSUMAKAN', 'TSUMAKAN.exe'),
+        'ResetConfig.exe',
+      ])
+    }).pipe(Effect.scoped, Effect.provide(TestLayer)),
+  )
+
+  it.effect('launches the program that was picked, even a settings tool', () =>
+    Effect.gen(function* () {
+      const library = yield* client
+      const fs = yield* FileSystem.FileSystem
+      const path = yield* Path.Path
+      const folder = yield* fs.makeTempDirectoryScoped({ prefix: 'wenbu-game-' })
+
+      yield* Effect.forEach(['Config.exe', 'Game.exe'], (name) =>
+        fs.writeFileString(path.join(folder, name), 'MZ'),
+      )
+
+      const picked = yield* library.inspectFolder({ path: path.join(folder, 'Config.exe') })
+
+      expect(picked.executablePath).toBe(path.join(folder, 'Config.exe'))
+    }).pipe(Effect.scoped, Effect.provide(TestLayer)),
+  )
+
+  it.effect("lists a game's programs best first and switches the one it starts", () =>
+    Effect.gen(function* () {
+      const library = yield* client
+      const fs = yield* FileSystem.FileSystem
+      const path = yield* Path.Path
+      const folder = yield* fs.makeTempDirectoryScoped({ prefix: 'wenbu-game-' })
+
+      yield* fs.writeFileString(path.join(folder, 'Config.exe'), 'MZ')
+      yield* fs.writeFileString(path.join(folder, 'Game.exe'), 'MZ-game')
+      yield* fs.writeFileString(path.join(folder, 'notes.txt'), 'x')
+
+      const game = yield* library.addGame({ path: folder })
+      const programs = yield* library.listGamePrograms({ id: game.id })
+
+      expect(programs).toEqual([
+        { path: path.join(folder, 'Game.exe'), name: 'Game.exe', sizeBytes: 7, tool: false },
+        { path: path.join(folder, 'Config.exe'), name: 'Config.exe', sizeBytes: 2, tool: true },
+      ])
+
+      const changed = yield* library.setGameProgram({
+        id: game.id,
+        path: path.join(folder, 'Config.exe'),
+      })
+
+      expect(changed.executablePath).toBe(path.join(folder, 'Config.exe'))
+
+      const refused = yield* Effect.forEach(
+        [path.join(folder, 'notes.txt'), path.join(folder, 'Gone.exe')],
+        (file) =>
+          Effect.flip(library.setGameProgram({ id: game.id, path: file })).pipe(
+            Effect.map((error) => error.message),
+          ),
+      )
+
+      expect(refused).toEqual([
+        'Choose a Windows program (.exe).',
+        'This program no longer exists.',
+      ])
+    }).pipe(Effect.scoped, Effect.provide(TestLayer)),
+  )
+
   it.effect('explains folders that are not games', () =>
     Effect.gen(function* () {
       const library = yield* client

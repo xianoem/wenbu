@@ -1,9 +1,8 @@
 import { Effect, FileSystem, Option, Path, Predicate, Schema } from 'effect'
 import { type GameEngine, GameCandidate, isTranslatable, LibraryError } from '#contract/Library'
 import { GameData } from '../rpgmaker/GameData'
+import { rankPrograms } from './GamePrograms'
 import { textProfile } from '../rpgmaker/TextProfile'
-
-const helperExecutable = /^(unins\d*|setup|crashpad|notification_helper|vc_redist|dxwebsetup|nw)$/i
 
 const SystemTitle = Schema.Struct({ gameTitle: Schema.optional(Schema.String) })
 
@@ -17,8 +16,6 @@ const prettify = (name: string) =>
     .replace(/\s+/g, ' ')
     .replace(/\b\w/g, (letter) => letter.toUpperCase())
     .trim()
-
-const comparable = (text: string) => text.toLocaleLowerCase().replace(/\W+/g, '')
 
 interface RgssEngine {
   readonly engine: GameEngine
@@ -95,13 +92,6 @@ export const inspectFolder = Effect.fn('GameFolder.inspect')(function* (input: s
     { concurrency: 32 },
   )
 
-  const executables = files.filter(
-    (file) =>
-      file.split(/[\\/]/).length <= 3 &&
-      path.extname(file).toLowerCase() === '.exe' &&
-      !helperExecutable.test(path.basename(file, path.extname(file))),
-  )
-
   const gameIni = yield* readText(path.join(folderPath, 'Game.ini'))
 
   const hasAny = (markers: ReadonlyArray<string>) =>
@@ -153,12 +143,8 @@ export const inspectFolder = Effect.fn('GameFolder.inspect')(function* (input: s
 
   const title = Option.getOrElse(projectTitle, () => prettify(path.basename(folderPath)))
 
-  const launcher =
-    executables.find(
-      (file) => comparable(path.basename(file, path.extname(file))) === comparable(title),
-    ) ??
-    executables.find((file) => !/[\\/]/.test(file)) ??
-    executables[0]
+  const picked = info.type === 'File' ? path.basename(resolved) : undefined
+  const launcher = rankPrograms(path, files, title, picked)[0]?.file
 
   if (launcher === undefined) {
     return yield* invalid("This folder doesn't contain a Windows game (.exe).")

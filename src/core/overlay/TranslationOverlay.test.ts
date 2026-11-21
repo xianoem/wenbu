@@ -146,6 +146,8 @@ const makeFakes = Effect.gen(function* () {
             gameProcessId: Effect.succeed(Option.some(100)),
             exited: Deferred.await(exited),
           })),
+        problem: () => Stream.make(Option.none()),
+        dismissProblem: () => Effect.void,
       })
     }),
   )

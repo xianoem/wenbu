@@ -17,8 +17,9 @@ import { Input } from '#ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '#ui/select'
 import { Textarea } from '#ui/textarea'
 import { isPluginReady, pluginsAtom } from '../../plugins/plugins'
-import { libraryKeys, setLaunchLocaleAtom, updateGameAtom } from '../library'
+import { libraryKeys, setGameProgramAtom, setLaunchLocaleAtom, updateGameAtom } from '../library'
 import { automaticHint } from './LocalePill'
+import { ProgramField } from './ProgramField'
 
 const hintOf = (locale: GameLocale, game: Game, lunaHookReady: boolean) => {
   if (locale === 'auto') {
@@ -42,6 +43,8 @@ export function EditGameDialog({
   const [notes, setNotes] = useState(game.notes ?? '')
   const setLocale = useAtomSet(setLaunchLocaleAtom, { mode: 'promiseExit' })
   const [locale, setLocaleDraft] = useState<GameLocale>(game.locale)
+  const setProgram = useAtomSet(setGameProgramAtom, { mode: 'promiseExit' })
+  const [program, setProgramDraft] = useState(game.executablePath)
   const [error, setError] = useState<FormError | undefined>(undefined)
   const lunaHookReady = isPluginReady(useAtomValue(pluginsAtom), 'luna-hook')
 
@@ -51,14 +54,19 @@ export function EditGameDialog({
       reactivityKeys: libraryKeys,
     })
 
-    const localeExit =
-      Exit.isSuccess(exit) && locale !== game.locale
-        ? await setLocale({ payload: { id: game.id, locale }, reactivityKeys: libraryKeys })
+    const programExit =
+      Exit.isSuccess(exit) && program !== game.executablePath
+        ? await setProgram({ payload: { id: game.id, path: program }, reactivityKeys: libraryKeys })
         : exit
 
-    setError(formErrorOf(exit) ?? formErrorOf(localeExit))
+    const localeExit =
+      Exit.isSuccess(programExit) && locale !== game.locale
+        ? await setLocale({ payload: { id: game.id, locale }, reactivityKeys: libraryKeys })
+        : programExit
 
-    if (Exit.isSuccess(exit) && Exit.isSuccess(localeExit)) {
+    setError(formErrorOf(exit) ?? formErrorOf(programExit) ?? formErrorOf(localeExit))
+
+    if (Exit.isSuccess(exit) && Exit.isSuccess(programExit) && Exit.isSuccess(localeExit)) {
       onClose()
     }
   }
@@ -69,7 +77,7 @@ export function EditGameDialog({
         <DialogHeader>
           <DialogTitle>Edit details</DialogTitle>
           <DialogDescription>
-            The name and notes are yours; the game folder stays as it is.
+            The name and notes are yours; the game's files stay as they are.
           </DialogDescription>
         </DialogHeader>
 
@@ -94,6 +102,13 @@ export function EditGameDialog({
               onChange={(event) => setNotes(event.target.value)}
             />
           </Field>
+
+          <ProgramField
+            game={game}
+            value={program}
+            error={fieldError(error, 'program')}
+            onChange={setProgramDraft}
+          />
 
           <Field>
             <FieldLabel>Start the game in</FieldLabel>

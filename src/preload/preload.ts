@@ -106,6 +106,7 @@ const bridge: WenbuBridge = {
   window: (action) => ipcRenderer.send(bridgeChannels.window, action),
   chooseFolder: () => ipcRenderer.invoke(bridgeChannels.chooseFolder),
   chooseArchive: () => ipcRenderer.invoke(bridgeChannels.chooseArchive),
+  chooseProgram: (folder) => ipcRenderer.invoke(bridgeChannels.chooseProgram, folder),
   chooseSavePath: (suggested, extension) =>
     ipcRenderer.invoke(bridgeChannels.chooseSavePath, suggested, extension),
   pathForFile: (file) => webUtils.getPathForFile(file),

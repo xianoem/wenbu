@@ -90,6 +90,23 @@ export class GameCandidate extends Schema.Class<GameCandidate>('GameCandidate')(
   translation: TranslationState,
 }) {}
 
+export const GameProgram = Schema.Struct({
+  path: Schema.String,
+  name: Schema.String,
+  sizeBytes: Schema.Int,
+  tool: Schema.Boolean,
+})
+
+export type GameProgram = typeof GameProgram.Type
+
+export const LaunchProblem = Schema.Struct({
+  seconds: Schema.Int,
+  program: GameProgram,
+  suggestion: GameProgram,
+})
+
+export type LaunchProblem = typeof LaunchProblem.Type
+
 export const CgPack = Schema.Struct({
   path: Schema.String,
   imageCount: Schema.Int,
@@ -119,6 +136,22 @@ export class LibraryRpc extends RpcGroup.make(
   }),
   Rpc.make('removeGame', { payload: ById, error: LibraryError }),
   Rpc.make('launchGame', { payload: ById, error: LibraryError }),
+  Rpc.make('listGamePrograms', {
+    payload: ById,
+    success: Schema.Array(GameProgram),
+    error: LibraryError,
+  }),
+  Rpc.make('setGameProgram', {
+    payload: { id: Schema.String, path: Schema.String },
+    success: Game,
+    error: LibraryError,
+  }),
+  Rpc.make('watchLaunchProblem', {
+    payload: ById,
+    success: Schema.OptionFromNullOr(LaunchProblem),
+    stream: true,
+  }),
+  Rpc.make('dismissLaunchProblem', { payload: ById }),
   Rpc.make('setLaunchLocale', {
     payload: { id: Schema.String, locale: GameLocale },
     success: Game,
