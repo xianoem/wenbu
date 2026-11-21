@@ -1,5 +1,21 @@
 [
   {
+    "version": "0.8.0",
+    "date": "2026-11-21",
+    "changes": [
+      {
+        "kind": "new",
+        "area": "translation",
+        "text": "Translate WOLF RPG games like RPG Maker ones"
+      },
+      {
+        "kind": "fixed",
+        "area": "overlay",
+        "text": "Translate each hooked line once and sooner"
+      }
+    ]
+  },
+  {
     "version": "0.7.0",
     "date": "2026-11-21",
     "changes": [
