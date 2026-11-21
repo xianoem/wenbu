@@ -1,5 +1,16 @@
 [
   {
+    "version": "0.6.0",
+    "date": "2026-11-21",
+    "changes": [
+      {
+        "kind": "new",
+        "area": "quick-translate",
+        "text": "Translate any selection with Ctrl+C+C"
+      }
+    ]
+  },
+  {
     "version": "0.5.1",
     "date": "2026-11-20",
     "changes": [
