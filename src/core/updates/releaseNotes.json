@@ -1,5 +1,16 @@
 [
   {
+    "version": "0.7.0",
+    "date": "2026-11-21",
+    "changes": [
+      {
+        "kind": "new",
+        "area": "library",
+        "text": "Pick the right program and let it be changed"
+      }
+    ]
+  },
+  {
     "version": "0.6.0",
     "date": "2026-11-21",
     "changes": [
