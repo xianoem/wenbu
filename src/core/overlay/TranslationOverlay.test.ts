@@ -188,7 +188,6 @@ const setup = Effect.fn(function* (settings: Partial<OverlaySettings> = {}) {
   const layer = TranslationOverlayRpcLive.pipe(
     Layer.provideMerge(
       TranslationOverlay.layerWith({
-        debounce: '5 millis',
         poll: '10 millis',
         searchFor: '50 millis',
         crashWithin: '15 seconds',
@@ -270,6 +269,17 @@ describe('TranslationOverlay', () => {
       })
 
       expect(yield* Ref.get(commands)).toEqual(['attach 100'])
+    }).pipe(Effect.scoped),
+  )
+
+  it.effect('asks for the translation as soon as the line arrives', () =>
+    Effect.gen(function* () {
+      const { client, game, emit, translated } = yield* setup()
+
+      yield* client.attachOverlay({ gameId: game.id, processId: 100 })
+      yield* emit(dialogue(100))
+      yield* emit(say('100:dialogue', 'こんにちは、元気ですか？'))
+      yield* translated('EN:こんにちは、元気ですか？')
     }).pipe(Effect.scoped),
   )
 

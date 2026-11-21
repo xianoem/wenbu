@@ -28,6 +28,10 @@ if (plugin.includes('missing')) {
   process.exit(1)
 }
 
+if (log !== undefined) {
+  appendFileSync(log, `--buffer ${argument('--buffer')}\n`)
+}
+
 send({ event: 'ready' })
 
 const thread = (pid, code) => `${pid}:${code}:0:0`
@@ -69,7 +73,13 @@ lines.on('line', (line) => {
       name: 'TextOutA',
     })
 
-    send({ event: 'text', thread: thread(pid, 'HS8@0:Game.exe'), text: 'こんにちは、世界。' })
+    // A game that redraws its message every frame fills LunaHost's buffer with copies.
+    const text =
+      pid === 200
+        ? '理央：島が見えてきた。\n'.repeat(40) + '平太：やっと着いたな。\n'.repeat(80)
+        : 'こんにちは、世界。'
+
+    send({ event: 'text', thread: thread(pid, 'HS8@0:Game.exe'), text })
     send({ event: 'log', level: 'info', message: 'Game engine: KiriKiri.' })
 
     return

@@ -2,6 +2,7 @@ import * as NodeServices from '@effect/platform-node/NodeServices'
 import { describe, expect, it } from '@effect/vitest'
 import { Context, Effect, FileSystem, Layer, Path, Stream } from 'effect'
 import { OverlayError } from '#contract/TranslationOverlay'
+import { hookBufferSize } from './HookBuffer'
 import { HostEvent, LunaHookHost } from './LunaHookHost'
 
 const setup = Effect.gen(function* () {
@@ -47,6 +48,21 @@ describe('LunaHookHost', () => {
         HostEvent.Text({ thread: '100:HS8@0:Game.exe:0:0', text: 'こんにちは、世界。' }),
         HostEvent.Log({ level: 'info', message: 'Game engine: KiriKiri.' }),
       ])
+    }).pipe(Effect.scoped, Effect.provide(NodeServices.layer)),
+  )
+
+  it.live('keeps only the newest line when a redrawn line fills the buffer', () =>
+    Effect.gen(function* () {
+      const { host } = yield* setup
+      const session = yield* host.start('plugins/luna-hook/v12')
+
+      yield* session.attach(200)
+
+      const events = yield* take(session.events, 3)
+
+      expect(events[2]).toEqual(
+        HostEvent.Text({ thread: '200:HS8@0:Game.exe:0:0', text: '平太：やっと着いたな。\n' }),
+      )
     }).pipe(Effect.scoped, Effect.provide(NodeServices.layer)),
   )
 
@@ -114,7 +130,7 @@ describe('LunaHookHost', () => {
 
       yield* Effect.scoped(host.start('plugins/luna-hook/v12'))
 
-      expect(yield* commands).toEqual(['quit'])
+      expect(yield* commands).toEqual([`--buffer ${hookBufferSize}`, 'quit'])
     }).pipe(Effect.scoped, Effect.provide(NodeServices.layer)),
   )
 

@@ -56,7 +56,6 @@ import {
 } from './TranslationContext'
 
 export interface OverlayTiming {
-  readonly debounce: Duration.Input
   readonly poll: Duration.Input
   readonly searchFor: Duration.Input
   readonly crashWithin: Duration.Input
@@ -119,7 +118,6 @@ interface Session {
   readonly launch: Ref.Ref<LaunchMark | undefined>
   readonly manualCodes: Ref.Ref<ReadonlySet<string>>
   readonly lastLine: Ref.Ref<string>
-  readonly lines: Queue.Queue<string>
   readonly requests: Queue.Queue<TranslationRequest>
   readonly pairs: Ref.Ref<ReadonlyArray<ContextPair>>
   readonly story: Ref.Ref<{ readonly summary: string; readonly lineCount: number }>
@@ -372,7 +370,7 @@ export class TranslationOverlay extends Context.Service<
             return
           }
 
-          yield* Queue.offer(session.lines, line)
+          yield* Queue.offer(session.requests, { text: line, fresh: false })
         })
 
         const select = Effect.fnUntraced(function* (session: Session, selection: Selection) {
@@ -754,12 +752,6 @@ export class TranslationOverlay extends Context.Service<
             Effect.forkIn(session.scope),
           )
 
-          yield* Stream.fromQueue(session.lines).pipe(
-            Stream.debounce(timing.debounce),
-            Stream.runForEach((text) => Queue.offer(session.requests, { text, fresh: false })),
-            Effect.forkIn(session.scope),
-          )
-
           const requests = Stream.fromQueue(session.requests)
 
           const translations =
@@ -830,7 +822,6 @@ export class TranslationOverlay extends Context.Service<
             launch: yield* Ref.make<LaunchMark | undefined>(undefined),
             manualCodes: yield* Ref.make<ReadonlySet<string>>(new Set()),
             lastLine: yield* Ref.make(''),
-            lines: yield* Queue.unbounded<string>(),
             requests: yield* Queue.sliding<TranslationRequest>(1),
             pairs: yield* Ref.make<ReadonlyArray<ContextPair>>([]),
             story: yield* Ref.make(
@@ -1235,7 +1226,6 @@ export class TranslationOverlay extends Context.Service<
     )
 
   static readonly layer = TranslationOverlay.layerWith({
-    debounce: '150 millis',
     poll: '1 second',
     searchFor: '20 seconds',
     crashWithin: '15 seconds',

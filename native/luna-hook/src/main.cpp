@@ -6,6 +6,7 @@
 #include <shellapi.h>
 #include <tlhelp32.h>
 
+#include <algorithm>
 #include <cctype>
 #include <cstdint>
 #include <cstdio>
@@ -73,6 +74,7 @@ namespace
 
     Luna luna;
     std::filesystem::path pluginFolder;
+    int maxBufferSize = 3000;
     std::mutex outputLock;
     std::mutex stateLock;
     std::set<DWORD> connectedProcesses;
@@ -773,7 +775,7 @@ namespace
             return 1;
         }
 
-        luna.settings(200, 932, 3000, 1000000, false);
+        luna.settings(200, 932, maxBufferSize, 1000000, false);
         luna.start(onConnected, onDisconnected, onThreadCreated, onThreadDestroyed, onOutput, onHostInfo, onHookInserted, onEmbed, onI18nQuery, onEmuGameInfo);
         send("{\"event\":\"ready\"}");
 
@@ -891,6 +893,9 @@ int wmain(int argc, wchar_t **argv)
     }
 
     pluginFolder = *plugin;
+
+    if (const auto buffer = argument(argc, argv, L"--buffer"))
+        maxBufferSize = std::max(1, static_cast<int>(std::wcstol(buffer->c_str(), nullptr, 10)));
 
     return flag(argc, argv, L"--check") ? check() : host();
 }

@@ -20,6 +20,7 @@ import { OverlayError } from '#contract/TranslationOverlay'
 import { watchSidecar } from '../platform/SidecarOutput'
 import { lunaHookHelper } from '../plugins/definitions/LunaHook'
 import type { RunningProcess } from './GameProcesses'
+import { hookBufferSize, newestPush } from './HookBuffer'
 
 export type HelperCommand = (args: ReadonlyArray<string>) => {
   readonly command: string
@@ -147,7 +148,13 @@ export class LunaHookHost extends Context.Service<
           const ready = yield* Deferred.make<void, OverlayError>()
           const pending = yield* Ref.make(new Map<number, Deferred.Deferred<void, OverlayError>>())
           const nextId = yield* Ref.make(1)
-          const { command, args } = helperCommand(['--plugin', folder])
+
+          const { command, args } = helperCommand([
+            '--plugin',
+            folder,
+            '--buffer',
+            `${hookBufferSize}`,
+          ])
 
           const handle = yield* spawner
             .spawn(
@@ -195,7 +202,8 @@ export class LunaHookHost extends Context.Service<
                 thread: ({ event: _event, ...thread }) =>
                   Queue.offer(events, HostEvent.Thread(thread)),
                 removed: ({ thread }) => Queue.offer(events, HostEvent.Removed({ thread })),
-                text: ({ thread, text }) => Queue.offer(events, HostEvent.Text({ thread, text })),
+                text: ({ thread, text }) =>
+                  Queue.offer(events, HostEvent.Text({ thread, text: newestPush(text) })),
                 log: ({ level, message }) => Queue.offer(events, HostEvent.Log({ level, message })),
               }),
             )
