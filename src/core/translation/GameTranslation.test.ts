@@ -1690,7 +1690,7 @@ const todaysRequest = (items: string) =>
   [
     'Detect the language of the game text, then translate it into English.',
     'Return only a JSON object whose keys are the given numbers and whose values are the translated strings.',
-    'Keep RPG Maker control codes (like \\C[2] or \\N[1]), placeholders (like %1) and line breaks.',
+    'Keep control codes (like \\C[2], \\N[1] or \\cself[8]), placeholders (like %1) and line breaks.',
     items,
   ].join('\n\n')
 
@@ -1730,7 +1730,7 @@ describe('Game glossary', () => {
       expect(run.steps.map((step) => step.id)).toEqual(['prepare', 'extract', 'translate', 'apply'])
 
       expect(sent.map((request) => request.system)).toEqual(
-        todaysRequests.map(() => 'You are a careful RPG Maker localization assistant.'),
+        todaysRequests.map(() => 'You are a careful game localization assistant.'),
       )
 
       expect(sent.map((request) => request.prompt).toSorted()).toEqual(todaysRequests)

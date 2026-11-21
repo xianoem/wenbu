@@ -91,6 +91,25 @@ describe('Library', () => {
     }).pipe(Effect.scoped, Effect.provide(TestLayer)),
   )
 
+  it.effect('recognises WOLF RPG games by Data.wolf and leaves their archive alone', () =>
+    Effect.gen(function* () {
+      const library = yield* client
+      const fs = yield* FileSystem.FileSystem
+      const path = yield* Path.Path
+      const folder = yield* fs.makeTempDirectoryScoped({ prefix: 'wenbu-game-' })
+
+      yield* fs.writeFileString(path.join(folder, 'Game.exe'), 'MZ')
+      yield* fs.writeFileString(path.join(folder, 'Game.ini'), '[Game]\nStart=0\n')
+      yield* fs.writeFileString(path.join(folder, 'Data.wolf'), 'WOLF')
+
+      const candidate = yield* library.inspectFolder({ path: folder })
+
+      expect(candidate).toMatchObject({ engine: 'wolf-rpg', translation: 'original' })
+      expect(candidate.text).toBeUndefined()
+      expect(yield* fs.readDirectory(folder)).toHaveLength(3)
+    }).pipe(Effect.scoped, Effect.provide(TestLayer)),
+  )
+
   it.effect('launches the game rather than the tools shipped beside it', () =>
     Effect.gen(function* () {
       const library = yield* client

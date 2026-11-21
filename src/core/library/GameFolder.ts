@@ -51,6 +51,30 @@ const rgssEngines: ReadonlyArray<RgssEngine> = [
   },
 ]
 
+const wolfPrograms = ['Game.exe', 'GamePro.exe']
+
+const wolfMarkers = [
+  'Data.wolf',
+  'Data.wolf.wenbu-backup',
+  'Data/BasicData.wolf',
+  'Data/BasicData.wolf.wenbu-backup',
+  'Data/BasicData/Game.dat',
+]
+
+/** WOLF RPG games run `Game.exe` (or `GamePro.exe`) over `Data.wolf` or a `Data` folder of archives. */
+export const isWolfFolder = Effect.fnUntraced(function* (folderPath: string) {
+  const fs = yield* FileSystem.FileSystem
+  const path = yield* Path.Path
+
+  const exists = (relative: string) =>
+    fs.exists(path.join(folderPath, ...relative.split('/'))).pipe(Effect.orElseSucceed(() => false))
+
+  const anyOf = (names: ReadonlyArray<string>) =>
+    Effect.map(Effect.forEach(names, exists), (found) => found.includes(true))
+
+  return (yield* anyOf(wolfPrograms)) && (yield* anyOf(wolfMarkers))
+})
+
 export const inspectFolder = Effect.fn('GameFolder.inspect')(function* (input: string) {
   const fs = yield* FileSystem.FileSystem
   const path = yield* Path.Path
@@ -121,6 +145,10 @@ export const inspectFolder = Effect.fn('GameFolder.inspect')(function* (input: s
       }
     }
 
+    if (yield* isWolfFolder(folderPath)) {
+      return 'wolf-rpg'
+    }
+
     return 'windows'
   })
 
@@ -153,12 +181,17 @@ export const inspectFolder = Effect.fn('GameFolder.inspect')(function* (input: s
   const game = { folderPath, engine }
   const translatable = isTranslatable(engine)
 
-  const text = translatable
-    ? yield* gameData.originalLocations(game).pipe(
-        Effect.map((locations) => textProfile(locations)),
-        Effect.orElseSucceed(() => undefined),
-      )
-    : undefined
+  // A WOLF game's text is read only once Wenbu has unpacked it, which adding a game never does.
+  const textReady =
+    engine !== 'wolf-rpg' || (yield* exists(path.join(folderPath, 'Data.wenbu-original', 'dump')))
+
+  const text =
+    translatable && textReady
+      ? yield* gameData.originalLocations(game).pipe(
+          Effect.map((locations) => textProfile(locations, engine)),
+          Effect.orElseSucceed(() => undefined),
+        )
+      : undefined
 
   const translated =
     translatable && (yield* gameData.hasOriginals(game).pipe(Effect.orElseSucceed(() => false)))

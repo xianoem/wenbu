@@ -2,9 +2,11 @@ import { describe, expect, it } from '@effect/vitest'
 import type { GameGlossaryEntry } from '#contract/GameGlossary'
 import type { RpgData } from '../rpgmaker/RpgData'
 import type { TextEntry } from '../rpgmaker/TextEntries'
+import { decodeWolfData } from '../wolf/WolfText'
 import {
   candidateNames,
   collectMaterial,
+  isMaterialFile,
   lineCounts,
   provisionalGlossary,
   speakerIndex,
@@ -178,5 +180,71 @@ describe('lineCounts', () => {
         ['potion', 1],
       ]),
     )
+  })
+})
+
+describe('WOLF RPG material', () => {
+  const wolfMessage = (index: number, text: string) => ({
+    code: 101,
+    codeStr: 'Message',
+    stringArgs: [text],
+    index,
+  })
+
+  const wolfMaterial = () => {
+    const collector = collectMaterial()
+
+    collector.add(
+      'common/3_冬子_会話.json',
+      decodeWolfData({
+        id: 3,
+        name: '冬子_会話',
+        description: '',
+        commands: [
+          wolfMessage(0, '@10\n冬子：\n　　肉回復丸をどうぞ。'),
+          wolfMessage(1, '@1\n　　扉が開いた。'),
+        ],
+      }),
+    )
+
+    collector.add(
+      'db/DataBase.json',
+      decodeWolfData({
+        types: [
+          {
+            name: 'アイテム',
+            description: '',
+            fields: [],
+            data: [
+              { name: '肉回復丸', data: [] },
+              { name: '--------', data: [] },
+            ],
+          },
+          { name: '技能', description: '', fields: [], data: [{ name: '斬撃', data: [] }] },
+          { name: '敵行動AI', description: '', fields: [], data: [{ name: '突撃', data: [] }] },
+        ],
+      }),
+    )
+
+    return collector.material()
+  }
+
+  it('reads who says each message and the names in the database', () => {
+    const found = wolfMaterial()
+
+    expect([...found.speakers]).toEqual([
+      ['common/3_冬子_会話.json::/commands/0/wenbu/body', { name: '冬子' }],
+    ])
+
+    expect(found.names).toEqual([
+      { kind: 'item', name: '肉回復丸' },
+      { kind: 'skill', name: '斬撃' },
+    ])
+
+    expect(
+      ['common/3_冬子_会話.json', 'mps/Map001.json', 'db/DataBase.json', 'Game.json'].map(
+        isMaterialFile,
+      ),
+    ).toEqual([true, true, true, false])
   })
 })

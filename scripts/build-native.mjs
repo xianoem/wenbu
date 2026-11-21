@@ -1,4 +1,5 @@
 import { execFileSync, spawnSync } from 'node:child_process'
+import { createHash } from 'node:crypto'
 import { copyFileSync, cpSync, existsSync, mkdirSync, rmSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 
@@ -96,6 +97,85 @@ for (const helper of helpers) {
   if (helper.licenses) {
     cpSync(join(build, 'Release', 'licenses'), join(outDir, 'licenses'), { recursive: true })
   }
+}
+
+// WOLF RPG games are unpacked by UberWolf and their text read and patched by WolfTL. Both are MIT
+// licensed; their pinned release builds are checked against these hashes.
+const wolfTools = [
+  {
+    repo: 'Sinflower/UberWolf',
+    tag: 'v0.6.4',
+    asset: 'UberWolfCli.exe',
+    sha256: '0c9645733ae9544df11ee0c859a7f2cb51aa547d5d13f7935cb480bdab96fb3a',
+    licenses: [
+      'LICENSE',
+      '3rdParty/CLI11/LICENSE',
+      '3rdParty/lz4/LICENSE',
+      '3rdParty/nlohmann/LICENSE.MIT',
+    ],
+  },
+  {
+    repo: 'Sinflower/WolfTL',
+    tag: 'v0.6.2',
+    asset: 'WolfTL.exe',
+    sha256: 'a66ffcdb8efa6340b6003cb0afe0cb2bcf3aba5c14499d0b67f8fb868bcfc276',
+    licenses: [
+      'LICENSE',
+      'WolfTL/3rdParty/CLI11/LICENSE',
+      'WolfTL/3rdParty/lz4/LICENSE',
+      'WolfTL/3rdParty/nlohmann/LICENSE.MIT',
+    ],
+  },
+]
+
+const download = async (url) => {
+  const response = await fetch(url)
+
+  if (!response.ok) {
+    throw new Error(`${url} could not be downloaded: ${response.status}`)
+  }
+
+  return Buffer.from(await response.arrayBuffer())
+}
+
+const wolfDir = join(outDir, 'wolf')
+const wolfLicenseDir = join(outDir, 'licenses', 'wolf-tools')
+
+const fetchLicense = async (tool, name, license) => {
+  const text = await download(
+    `https://raw.githubusercontent.com/${tool.repo}/${tool.tag}/${license}`,
+  )
+
+  const parts = license.split('/')
+  const label = parts.length > 1 ? parts.at(-2) : name
+
+  writeFileSync(join(wolfLicenseDir, `${name}-${label}-${parts.at(-1)}.txt`), text)
+}
+
+const fetchWolfTool = async (tool) => {
+  const name = tool.repo.split('/')[1]
+
+  const bytes = await download(
+    `https://github.com/${tool.repo}/releases/download/${tool.tag}/${tool.asset}`,
+  )
+
+  const hash = createHash('sha256').update(bytes).digest('hex')
+
+  if (hash !== tool.sha256) {
+    throw new Error(`${tool.asset} ${tool.tag} does not match its pinned hash (got ${hash}).`)
+  }
+
+  writeFileSync(join(wolfDir, tool.asset), bytes)
+  process.stdout.write(`Fetched ${join(wolfDir, tool.asset)}\n`)
+
+  await Promise.all(tool.licenses.map((license) => fetchLicense(tool, name, license)))
+}
+
+if (windows) {
+  mkdirSync(wolfDir, { recursive: true })
+  mkdirSync(wolfLicenseDir, { recursive: true })
+
+  await Promise.all(wolfTools.map((tool) => fetchWolfTool(tool)))
 }
 
 // pydensecrf publishes no Windows wheels, and users can't be expected to have a C++ compiler.

@@ -19,6 +19,7 @@ import { type Game, isTranslatable } from '#contract/Library'
 import type { ModelPrice } from '#contract/Llm'
 import { Background, type Notice } from '../background/Background'
 import type { ApplySkipReason } from '../rpgmaker/ApplyTranslations'
+import { textProfile } from '../rpgmaker/TextProfile'
 import {
   prepareEntries,
   type SkipReason,
@@ -473,7 +474,10 @@ export const makeTranslationRuns = Effect.fnUntraced(function* (
       status: 'done',
       summary: {
         saved: 'Saved a copy of the original files',
-        unpacked: 'Unpacked Game.rgss3a and kept it as the original',
+        unpacked:
+          game.engine === 'wolf-rpg'
+            ? 'Unpacked the .wolf archives and kept them as the originals'
+            : 'Unpacked Game.rgss3a and kept it as the original',
         kept: 'Using the saved original files',
       }[saved],
     })
@@ -482,6 +486,16 @@ export const makeTranslationRuns = Effect.fnUntraced(function* (
 
     const locations = yield* gameData.originalLocations(game)
     const prepared = prepareEntries(locations, settings, yield* gameData.protectedText(game))
+
+    // A WOLF game's text, and with it its message window, is first read here.
+    if (game.text === undefined || (game.engine === 'wolf-rpg' && game.text.window === undefined)) {
+      const profile = textProfile(locations, game.engine)
+
+      if (profile !== undefined) {
+        yield* games.setText(game.id, profile)
+      }
+    }
+
     const files = new Set(prepared.entries.map((entry) => entry.file)).size
 
     const skipNotes = [...prepared.skipped]
@@ -789,7 +803,7 @@ export const makeTranslationRuns = Effect.fnUntraced(function* (
     if (!isTranslatable(game.engine)) {
       return yield* new TranslationError({
         reason: 'invalid',
-        message: 'Wenbu can translate RPG Maker games only.',
+        message: "Wenbu can't translate games made with this engine yet.",
       })
     }
 

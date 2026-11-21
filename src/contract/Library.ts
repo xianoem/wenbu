@@ -7,6 +7,7 @@ export const GameEngine = Schema.Literals([
   'rpg-maker-vx-ace',
   'rpg-maker-vx',
   'rpg-maker-xp',
+  'wolf-rpg',
   'windows',
 ])
 
@@ -18,11 +19,16 @@ export const engineLabels: Record<GameEngine, string> = {
   'rpg-maker-vx-ace': 'RPG Maker VX Ace',
   'rpg-maker-vx': 'RPG Maker VX',
   'rpg-maker-xp': 'RPG Maker XP',
+  'wolf-rpg': 'WOLF RPG Editor',
   windows: 'Windows game',
 }
 
-export const isTranslatable = (engine: GameEngine) =>
+/** RPG Maker games whose data Wenbu reads directly: the Game Guide and Memories need these. */
+export const isReadableRpgMaker = (engine: GameEngine) =>
   engine === 'rpg-maker-mv' || engine === 'rpg-maker-mz' || engine === 'rpg-maker-vx-ace'
+
+export const isTranslatable = (engine: GameEngine) =>
+  isReadableRpgMaker(engine) || engine === 'wolf-rpg'
 
 export const TranslationState = Schema.Literals(['original', 'translated', 'partial'])
 
@@ -43,10 +49,19 @@ export const localeLabels: Record<GameLocale, string> = {
   'locale-remulator': 'Japanese (Locale Remulator)',
 }
 
+/** A game's message window, measured from its original text: width in ems, and how many lines show. */
+export const MessageWindow = Schema.Struct({
+  width: Schema.Finite,
+  lines: Schema.Int,
+})
+
+export type MessageWindow = typeof MessageWindow.Type
+
 export const TextProfile = Schema.Struct({
   language: Schema.String,
   dialogueCharacters: Schema.Int,
   readingMinutes: Schema.Int,
+  window: Schema.optional(MessageWindow),
 })
 
 export type TextProfile = typeof TextProfile.Type

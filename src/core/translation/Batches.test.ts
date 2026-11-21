@@ -11,13 +11,13 @@ describe('batchPrompt', () => {
         { id: 'b', src: '回復薬', context: 'Items.json -> [1].name', entryIds: ['b'] },
       ])
 
-      expect(systemPrompt).toBe('You are a careful RPG Maker localization assistant.')
+      expect(systemPrompt).toBe('You are a careful game localization assistant.')
 
       expect(prompt).toBe(
         [
           'Detect the language of the game text, then translate it into English.',
           'Return only a JSON object whose keys are the given numbers and whose values are the translated strings.',
-          'Keep RPG Maker control codes (like \\C[2] or \\N[1]), placeholders (like %1) and line breaks.',
+          'Keep control codes (like \\C[2], \\N[1] or \\cself[8]), placeholders (like %1) and line breaks.',
           '{"1":{"text":"リナ「行こう」","context":"Map001.json -> Show Text"},"2":{"text":"回復薬","context":"Items.json -> [1].name"}}',
         ].join('\n\n'),
       )

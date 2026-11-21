@@ -14,7 +14,7 @@ import {
 } from './GlossaryMaterial'
 import { encodeJson } from './TranslationShared'
 
-export const preparationSystem = 'You prepare glossaries for translating RPG Maker games.'
+export const preparationSystem = 'You prepare glossaries for translating games.'
 
 const sampleCount = 5
 
@@ -84,11 +84,11 @@ export const preparationPrompt = Effect.fnUntraced(function* (
   entries: ReadonlyArray<TextEntry>,
 ) {
   return [
-    `Prepare a glossary for translating this RPG Maker game into ${targetLanguage}.`,
+    `Prepare a glossary for translating this game into ${targetLanguage}.`,
     'Return only a JSON object like {"characters":[{"original":"リナ","english":"Lina","voice":"Bright and quick to apologise. Calls Elda \\"Granny\\".","speakers":["name:リナ","face:Actor1:0"]}],"terms":[{"original":"灯火の森","english":"Lanternwood","kind":"place","note":""}]}.',
     'characters: everyone who speaks or is named below. "english" is the one name to use every time. "voice" is one or two short sentences a translator can follow: tone, how formal they are, how they refer to themselves and others, verbal habits. "speakers" lists the speaker keys below that belong to this character; a key belongs to one character at most.',
     'terms: places, items, skills and other names that must be translated the same way every time. "kind" is place, item, skill or other. "note" is optional: a few words when the use is not obvious.',
-    'Leave out RPG Maker control codes and ordinary words.',
+    'Leave out control codes and ordinary words.',
     `Speakers, with how many lines each has and some of them:\n${yield* Effect.orDie(encodeJson(Object.fromEntries(speakerSamples(material, entries))))}`,
     `Party members from the game's database:\n${yield* Effect.orDie(encodeJson(actorsOf(material)))}`,
     `Names from the game's database:\n${yield* Effect.orDie(encodeJson(namesByKind(material, entries)))}`,

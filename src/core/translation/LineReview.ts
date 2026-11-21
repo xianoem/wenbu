@@ -16,7 +16,7 @@ const everyLine = 1_000_000_000
 
 const isTooLong = (game: Game, line: TranslationLine) =>
   line.translatedText !== undefined &&
-  fitOf(game.engine, line.context, line.translatedText)?.status === 'too-long'
+  fitOf(game.engine, line.context, line.translatedText, game.text?.window)?.status === 'too-long'
 
 const shortenLimits = (fit: Fit | undefined) => {
   if (fit === undefined) {
@@ -40,7 +40,7 @@ const shortenPrompt = Effect.fnUntraced(function* (
   )
 
   return [
-    `Shorten this ${targetLanguage} game text to ${limits}, so it fits its window in the game. Keep its meaning, its RPG Maker control codes (like \\C[2] or \\N[1]) and placeholders (like %1).`,
+    `Shorten this ${targetLanguage} game text to ${limits}, so it fits its window in the game. Keep its meaning, its control codes (like \\C[2], \\N[1] or \\cself[8]) and placeholders (like %1).`,
     'Return only a JSON object whose keys are the given numbers and whose values are the shortened strings.',
     yield* Effect.orDie(encodeJson(items)),
   ].join('\n\n')
@@ -144,7 +144,7 @@ export const makeLineReview = (shared: TranslationShared, glossary: GameGlossary
       })
     }
 
-    const fit = fitOf(game.engine, line.context, translated)
+    const fit = fitOf(game.engine, line.context, translated, game.text?.window)
     const item = { id: entryId, src: translated, context: line.context, entryIds: [entryId] }
 
     return yield* askForLine(

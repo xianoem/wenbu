@@ -1,5 +1,5 @@
 import { Effect, FileSystem, Option, Path, Predicate, Ref, Schema } from 'effect'
-import { type Game, isTranslatable } from '#contract/Library'
+import { type Game, isReadableRpgMaker } from '#contract/Library'
 import { LiveControlsError } from '#contract/LiveControls'
 import { type Memories, MemoriesRpc } from '#contract/Memories'
 import { LiveControls } from '../livecontrols/LiveControls'
@@ -158,7 +158,7 @@ export const MemoriesRpcLive = MemoriesRpc.toLayer(
         )
       }
 
-      if (!isTranslatable(session.value.game.engine)) {
+      if (!isReadableRpgMaker(session.value.game.engine)) {
         return Effect.fail(
           new LiveControlsError({
             reason: 'unsupported',

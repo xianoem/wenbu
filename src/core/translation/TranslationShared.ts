@@ -14,7 +14,6 @@ import { LlmClient } from '../llm/LlmClient'
 import { PresetReferences } from '../llm/PresetReferences'
 import { DiskSpace } from '../platform/DiskSpace'
 import * as SettingsStore from '../platform/SettingsStore'
-import { type ApplySkipReason, applyTranslations } from '../rpgmaker/ApplyTranslations'
 import { GameData } from '../rpgmaker/GameData'
 import { prepareEntries, type TextEntry } from '../rpgmaker/TextEntries'
 import { changedFiles, GameFileHashes } from './GameFileHashes'
@@ -172,30 +171,11 @@ export const makeTranslationShared = Effect.gen(function* () {
     yield* gameData.restoreOriginals(game)
     yield* gameData.saveOriginals(game)
 
-    const dataPath = gameData.dataPathOf(game)
-    const byFile = Map.groupBy(entries, (entry) => entry.file)
-    const skipped = new Map<ApplySkipReason, number>()
-    const skippedIds = new Map<string, ApplySkipReason>()
-    let written = 0
-    let unchanged = 0
-
-    for (const [file, fileEntries] of byFile) {
-      const filePath = path.join(dataPath, file)
-      const data = yield* gameData.readData(filePath)
-      const result = applyTranslations(data, fileEntries, settings)
-
-      written += result.written
-      unchanged += result.unchanged
-
-      for (const skip of result.skipped) {
-        skipped.set(skip.reason, (skipped.get(skip.reason) ?? 0) + 1)
-        skippedIds.set(skip.entryId, skip.reason)
-      }
-
-      if (result.written > 0) {
-        yield* gameData.writeData(filePath, data)
-      }
-    }
+    const { written, unchanged, skipped, skippedIds } = yield* gameData.writeTranslations(
+      game,
+      entries,
+      settings,
+    )
 
     const writtenIds = entries
       .filter((entry) => entry.dst !== '' && !skippedIds.has(entry.id))

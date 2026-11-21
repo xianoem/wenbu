@@ -23,6 +23,7 @@ const dataFolders: Record<GameEngine, string> = {
   'rpg-maker-vx-ace': 'Data',
   'rpg-maker-vx': 'Data',
   'rpg-maker-xp': 'Data',
+  'wolf-rpg': 'Data',
   windows: '',
 }
 
@@ -32,6 +33,7 @@ const systemFiles: Record<GameEngine, string> = {
   'rpg-maker-vx-ace': 'Data/System.rvdata2',
   'rpg-maker-vx': 'Data/System.rvdata',
   'rpg-maker-xp': 'Data/System.rxdata',
+  'wolf-rpg': 'Data.wolf',
   windows: '',
 }
 

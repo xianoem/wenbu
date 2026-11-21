@@ -17,7 +17,7 @@ export interface ApplyResult {
   }>
 }
 
-const controlCodePattern = /\\[A-Z]+\[[^\]]+\]|\\[A-Z]/g
+const controlCodePattern = /\\[A-Za-z]+\[[^\]]+\]|\\[A-Z]/g
 
 const placeholderPattern = /%\d+|\{[A-Za-z0-9_]+\}/g
 

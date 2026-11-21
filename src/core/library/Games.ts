@@ -6,8 +6,19 @@ import {
   GameEngine,
   GameLocale,
   LibraryError,
+  MessageWindow,
+  type TextProfile,
   TranslationState,
 } from '#contract/Library'
+
+const WindowJson = Schema.fromJsonString(MessageWindow)
+
+const decodeWindow = Schema.decodeUnknownOption(WindowJson)
+
+const encodeWindow = Schema.encodeEffect(WindowJson)
+
+const windowColumn = (text: TextProfile | undefined) =>
+  text?.window === undefined ? Effect.succeed(null) : Effect.orDie(encodeWindow(text.window))
 
 const GameRow = Schema.Struct({
   id: Schema.String,
@@ -20,6 +31,7 @@ const GameRow = Schema.Struct({
   text_language: Schema.NullOr(Schema.String),
   dialogue_characters: Schema.NullOr(Schema.Int),
   reading_minutes: Schema.NullOr(Schema.Int),
+  text_window: Schema.NullOr(Schema.String),
   translation: TranslationState,
   added_at: Schema.String,
   last_played_at: Schema.NullOr(Schema.String),
@@ -30,6 +42,9 @@ const GameRow = Schema.Struct({
 })
 
 type GameRow = typeof GameRow.Type
+
+const windowOf = (row: GameRow) =>
+  row.text_window === null ? undefined : Option.getOrUndefined(decodeWindow(row.text_window))
 
 const toGame = (row: GameRow) =>
   Game.make({
@@ -56,6 +71,7 @@ const toGame = (row: GameRow) =>
             language: row.text_language,
             dialogueCharacters: row.dialogue_characters,
             readingMinutes: row.reading_minutes,
+            ...(windowOf(row) === undefined ? {} : { window: windowOf(row) }),
           },
         }),
   })
@@ -79,6 +95,8 @@ export class Games extends Context.Service<
     readonly recordLaunch: (id: string) => Effect.Effect<void>
     readonly recordPlay: (id: string, seconds: number) => Effect.Effect<void>
     readonly setTranslation: (id: string, state: TranslationState) => Effect.Effect<void>
+    readonly setEngine: (id: string, engine: GameEngine) => Effect.Effect<void>
+    readonly setText: (id: string, text: TextProfile) => Effect.Effect<void>
     readonly setLocale: (id: string, locale: GameLocale) => Effect.Effect<Game, LibraryError>
     readonly setExecutable: (
       id: string,
@@ -150,6 +168,7 @@ export class Games extends Context.Service<
             text_language: candidate.text?.language ?? null,
             dialogue_characters: candidate.text?.dialogueCharacters ?? null,
             reading_minutes: candidate.text?.readingMinutes ?? null,
+            text_window: yield* windowColumn(candidate.text),
             translation: candidate.translation,
             added_at: yield* now,
             last_played_at: null,
@@ -239,6 +258,21 @@ export class Games extends Context.Service<
         yield* sql`UPDATE games SET translation = ${state} WHERE id = ${id}`
       }, Effect.orDie)
 
+      const setEngine = Effect.fn('Games.setEngine')(function* (id: string, engine: GameEngine) {
+        yield* sql`UPDATE games SET engine = ${engine} WHERE id = ${id}`
+      }, Effect.orDie)
+
+      const setText = Effect.fn('Games.setText')(function* (id: string, text: TextProfile) {
+        const window = yield* windowColumn(text)
+
+        yield* sql`UPDATE games SET ${sql.update({
+          text_language: text.language,
+          dialogue_characters: text.dialogueCharacters,
+          reading_minutes: text.readingMinutes,
+          text_window: window,
+        })} WHERE id = ${id}`
+      }, Effect.orDie)
+
       const setLocale = Effect.fn('Games.setLocale')(function* (id: string, locale: GameLocale) {
         yield* get(id)
         yield* Effect.orDie(sql`UPDATE games SET launch_locale = ${locale} WHERE id = ${id}`)
@@ -281,6 +315,8 @@ export class Games extends Context.Service<
         recordLaunch,
         recordPlay,
         setTranslation,
+        setEngine,
+        setText,
         setLocale,
         setExecutable,
         localeUnchecked: Effect.map(Effect.orDie(unchecked()), (rows) => rows.map(toGame)),

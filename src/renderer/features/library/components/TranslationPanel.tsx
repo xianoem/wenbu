@@ -423,7 +423,8 @@ export function TranslationPanel({
   if (!isTranslatable(game.engine)) {
     return (
       <section className="mt-7 rounded-3xl bg-card p-5 text-muted-foreground shadow-card">
-        Wenbu translates RPG Maker MV, MZ and VX Ace games. This game uses another engine.
+        Wenbu translates RPG Maker MV, MZ and VX Ace games and WOLF RPG Editor games. This game uses
+        another engine.
       </section>
     )
   }

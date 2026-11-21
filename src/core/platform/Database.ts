@@ -853,6 +853,11 @@ const migrations = SqliteMigrator.fromRecord({
 
     yield* sql`CREATE INDEX game_glossary_entries_by_game ON game_glossary_entries (game_id, position)`
   }),
+  '0032_game_message_window': Effect.gen(function* () {
+    const sql = yield* SqlClient.SqlClient
+
+    yield* sql`ALTER TABLE games ADD COLUMN text_window TEXT`
+  }),
 })
 
 export const layer = (filename: string) =>

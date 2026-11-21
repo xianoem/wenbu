@@ -30,7 +30,8 @@ const commonAdjustments = [
   {
     key: 'speakerNames',
     label: 'Speaker names',
-    description: 'The name shown above a message box in RPG Maker MZ games.',
+    description:
+      'The name shown above a message: the name box in RPG Maker MZ, the speaker line in WOLF RPG games.',
   },
   {
     key: 'mapListNames',
@@ -345,8 +346,8 @@ export function TranslationSettingsPage() {
     <div className="mx-auto flex w-full max-w-[840px] flex-1 flex-col">
       <h1 className="text-[28px] font-semibold tracking-tight">Game translation</h1>
       <p className="mt-1 text-muted-foreground">
-        Defaults for every RPG Maker game. The model preset and target language are chosen on each
-        game's page.
+        Defaults for every game Wenbu translates. The model preset and target language are chosen on
+        each game's page.
       </p>
       {AsyncResult.isSuccess(result) ? <TranslationSettingsForm saved={result.value} /> : null}
       {AsyncResult.isFailure(result) ? (

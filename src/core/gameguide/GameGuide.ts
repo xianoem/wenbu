@@ -12,7 +12,7 @@ import {
   GuideSettings,
 } from '#contract/GameGuide'
 import { defaultTranslationSettings, TranslationSettings } from '#contract/GameTranslation'
-import { type Game, isTranslatable } from '#contract/Library'
+import { type Game, isReadableRpgMaker } from '#contract/Library'
 import type { LiveControlsError } from '#contract/LiveControls'
 import { LiveControls } from '../livecontrols/LiveControls'
 import { LlmClient } from '../llm/LlmClient'
@@ -154,7 +154,7 @@ export const GameGuideRpcLive = GameGuideRpc.toLayer(
     })
 
     const ensureIndex = Effect.fn('GameGuide.ensureIndex')(function* (game: Game) {
-      if (!isTranslatable(game.engine)) {
+      if (!isReadableRpgMaker(game.engine)) {
         yield* setIndex({
           ...noIndex,
           status: 'failed',

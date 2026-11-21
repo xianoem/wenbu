@@ -1,6 +1,6 @@
 import { ArrowsInLineHorizontalIcon } from '@phosphor-icons/react'
 import { cn } from 'cn'
-import type { GameEngine } from '#contract/Library'
+import type { GameEngine, MessageWindow } from '#contract/Library'
 import { type Fit, type FitKind, fitOf, measure } from '#contract/TextFit'
 import { Button } from '#ui/button'
 import { ScrollArea } from '#ui/scroll-area'
@@ -14,10 +14,10 @@ const kindLabels: Record<FitKind, string> = {
   battle: 'Battle log',
 }
 
-const splitAt = (line: string, maxWidth: number, fontSize: number) => {
+const splitAt = (line: string, maxWidth: number, fontSize: number, engine: GameEngine) => {
   let cut = line.length
 
-  while (cut > 0 && measure(line.slice(0, cut), fontSize) > maxWidth) {
+  while (cut > 0 && measure(line.slice(0, cut), fontSize, engine) > maxWidth) {
     cut--
   }
 
@@ -34,18 +34,20 @@ const statusOf = (fit: Fit) => {
 
 export function FitPreview({
   engine,
+  window,
   context,
   text,
   shortening,
   onShorten,
 }: {
   readonly engine: GameEngine
+  readonly window: MessageWindow | undefined
   readonly context: string
   readonly text: string
   readonly shortening: boolean
   readonly onShorten: (() => void) | undefined
 }) {
-  const fit = fitOf(engine, context, text)
+  const fit = fitOf(engine, context, text, window)
 
   if (fit === undefined || text.trim() === '') {
     return null
@@ -67,7 +69,7 @@ export function FitPreview({
           style={{ width: fit.maxWidth * scale, fontSize: fit.fontSize * scale }}
         >
           {rows.map((line) => {
-            const [fits, past] = splitAt(line.text, fit.maxWidth, fit.fontSize)
+            const [fits, past] = splitAt(line.text, fit.maxWidth, fit.fontSize, engine)
             const extra = fit.maxLines !== undefined && line.row >= fit.maxLines
 
             return (

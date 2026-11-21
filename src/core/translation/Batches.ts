@@ -33,14 +33,14 @@ export const batchesOf = (items: ReadonlyArray<TranslationItem>, tokenBudget: nu
   return batches
 }
 
-export const systemPrompt = 'You are a careful RPG Maker localization assistant.'
+export const systemPrompt = 'You are a careful game localization assistant.'
 
 const encodeJson = Schema.encodeEffect(Schema.fromJsonString(Schema.Unknown))
 
 export const instructionsOf = (settings: TranslationSettings) => [
   `Detect the language of the game text, then translate it into ${settings.targetLanguage}.`,
   'Return only a JSON object whose keys are the given numbers and whose values are the translated strings.',
-  'Keep RPG Maker control codes (like \\C[2] or \\N[1]), placeholders (like %1) and line breaks.',
+  'Keep control codes (like \\C[2], \\N[1] or \\cself[8]), placeholders (like %1) and line breaks.',
 ]
 
 export const batchPrompt = Effect.fnUntraced(function* (

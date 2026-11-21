@@ -10,17 +10,19 @@ import {
   Schema,
 } from 'effect'
 import { Hex } from 'effect/encoding'
+import type { TranslationSettings } from '#contract/GameTranslation'
 import type { GameEngine } from '#contract/Library'
 import { DiskSpace, folderSize } from '../platform/DiskSpace'
+import { makeWolfData } from '../wolf/WolfData'
+import { WolfTools } from '../wolf/WolfTools'
+import { type ApplySkipReason, applyTranslations } from './ApplyTranslations'
+import { GameDataError } from './GameDataError'
 import { assetNameOf, codeNamesOf, eventScriptsOf, type ProtectedText } from './ProtectedText'
 import { readArchive } from './Rgss3a'
 import type { RpgData } from './RpgData'
 import { decodeRubyMarshal, encodeRubyMarshal } from './RubyMarshal'
+import type { TextEntry } from './TextEntries'
 import { isTextFile, type TextLocation, textLocations } from './TextLocations'
-
-export class GameDataError extends Schema.TaggedError<GameDataError>()('GameDataError', {
-  message: Schema.String,
-}) {}
 
 export interface GameFiles {
   readonly folderPath: string
@@ -33,6 +35,7 @@ const dataFolders: Record<GameEngine, ReadonlyArray<string>> = {
   'rpg-maker-vx-ace': ['Data'],
   'rpg-maker-vx': ['Data'],
   'rpg-maker-xp': ['Data'],
+  'wolf-rpg': [],
   windows: [],
 }
 
@@ -42,6 +45,7 @@ const codeFolders: Record<GameEngine, ReadonlyArray<ReadonlyArray<string>>> = {
   'rpg-maker-vx-ace': [],
   'rpg-maker-vx': [],
   'rpg-maker-xp': [],
+  'wolf-rpg': [],
   windows: [],
 }
 
@@ -55,6 +59,7 @@ const assetFolders: Record<GameEngine, ReadonlyArray<ReadonlyArray<string>>> = {
   'rpg-maker-vx-ace': [['Graphics'], ['Audio'], ['Movies']],
   'rpg-maker-vx': [['Graphics'], ['Audio']],
   'rpg-maker-xp': [['Graphics'], ['Audio']],
+  'wolf-rpg': [],
   windows: [],
 }
 
@@ -115,6 +120,7 @@ const make = Effect.gen(function* () {
   const path = yield* Path.Path
   const disk = yield* DiskSpace
   const crypto = yield* Crypto.Crypto
+  const wolf = yield* makeWolfData
 
   const exists = (target: string) => fs.exists(target).pipe(Effect.orElseSucceed(() => false))
 
@@ -581,30 +587,93 @@ const make = Effect.gen(function* () {
     return (saved ? 0 : dataBytes) + Math.ceil(dataBytes / 4)
   })
 
+  const writeTranslations = Effect.fn('GameData.writeTranslations')(function* (
+    game: GameFiles,
+    entries: ReadonlyArray<TextEntry>,
+    settings: TranslationSettings,
+  ) {
+    const dataPath = dataPathOf(game)
+    const skipped = new Map<ApplySkipReason, number>()
+    const skippedIds = new Map<string, ApplySkipReason>()
+    let written = 0
+    let unchanged = 0
+
+    for (const [file, fileEntries] of Map.groupBy(entries, (entry) => entry.file)) {
+      const filePath = path.join(dataPath, file)
+      const data = yield* readData(filePath)
+      const result = applyTranslations(data, fileEntries, settings)
+
+      written += result.written
+      unchanged += result.unchanged
+
+      for (const skip of result.skipped) {
+        skipped.set(skip.reason, (skipped.get(skip.reason) ?? 0) + 1)
+        skippedIds.set(skip.entryId, skip.reason)
+      }
+
+      if (result.written > 0) {
+        yield* writeData(filePath, data)
+      }
+    }
+
+    return { written, unchanged, skipped, skippedIds }
+  })
+
+  const isWolf = (game: GameFiles) => game.engine === 'wolf-rpg'
+
   return {
-    spaceToTranslate,
-    dataPathOf,
+    spaceToTranslate: (game: GameFiles) =>
+      isWolf(game) ? wolf.spaceToTranslate(game) : spaceToTranslate(game),
+    dataPathOf: (game: GameFiles) => (isWolf(game) ? wolf.dataPathOf(game) : dataPathOf(game)),
     dataFiles,
     readData,
     writeData,
-    locations,
-    originalLocations,
-    forEachOriginal,
-    originalStamp,
-    protectedText,
-    hasOriginals,
-    saveOriginals,
-    restoreOriginals,
-    discardOriginals,
-    dataHashes,
-    originalHashes,
-    hasArchivedOriginals,
-    hasNewArchive,
+    locations: (game: GameFiles) => (isWolf(game) ? wolf.locations(game) : locations(game)),
+    originalLocations: (game: GameFiles) =>
+      isWolf(game) ? wolf.originalLocations(game) : originalLocations(game),
+    forEachOriginal: <E, R>(
+      game: GameFiles,
+      accept: (file: string) => boolean,
+      visit: (file: string, data: RpgData) => Effect.Effect<void, E, R>,
+    ) =>
+      isWolf(game)
+        ? wolf.forEachOriginal(game, accept, visit)
+        : forEachOriginal(game, accept, visit),
+    originalStamp: (game: GameFiles) =>
+      isWolf(game) ? wolf.originalStamp(game) : originalStamp(game),
+    protectedText: (game: GameFiles) =>
+      isWolf(game) ? wolf.protectedText(game) : protectedText(game),
+    hasOriginals: (game: GameFiles) =>
+      isWolf(game) ? wolf.hasOriginals(game) : hasOriginals(game),
+    saveOriginals: (game: GameFiles) =>
+      isWolf(game) ? wolf.saveOriginals(game) : saveOriginals(game),
+    restoreOriginals: (game: GameFiles) =>
+      isWolf(game) ? wolf.restoreOriginals(game) : restoreOriginals(game),
+    discardOriginals: (game: GameFiles) =>
+      isWolf(game) ? wolf.discardOriginals(game) : discardOriginals(game),
+    dataHashes: (game: GameFiles) => (isWolf(game) ? wolf.dataHashes(game) : dataHashes(game)),
+    originalHashes: (game: GameFiles) =>
+      isWolf(game) ? wolf.originalHashes(game) : originalHashes(game),
+    hasArchivedOriginals: (game: GameFiles) =>
+      isWolf(game) ? wolf.hasArchivedOriginals(game) : hasArchivedOriginals(game),
+    hasNewArchive: (game: GameFiles) =>
+      isWolf(game) ? wolf.hasNewArchive(game) : hasNewArchive(game),
+    writeTranslations: (
+      game: GameFiles,
+      entries: ReadonlyArray<TextEntry>,
+      settings: TranslationSettings,
+    ) =>
+      isWolf(game)
+        ? wolf.writeTranslations(game, entries, settings)
+        : writeTranslations(game, entries, settings),
   }
 })
 
 export class GameData extends Context.Service<GameData, Effect.Success<typeof make>>()(
   'wenbu/core/rpgmaker/GameData',
 ) {
-  static readonly layer = Layer.effect(GameData, make)
+  /** Without the WOLF RPG tools, so tests can give it their own. */
+  static readonly base = Layer.effect(GameData, make)
+
+  static readonly layer = GameData.base.pipe(Layer.provide(WolfTools.live))
 }

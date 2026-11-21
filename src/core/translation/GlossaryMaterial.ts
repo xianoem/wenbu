@@ -5,6 +5,7 @@ import { isDataArray, isDataObject, type RpgData } from '../rpgmaker/RpgData'
 import { dialogueSpeakers, type Speaker, speakerKeysOf } from '../rpgmaker/Speakers'
 import type { TextEntry, TranslationItem } from '../rpgmaker/TextEntries'
 import { isMapFile } from '../rpgmaker/TextLocations'
+import { isWolfTextFile, wolfDatabaseNames, wolfSpeakers } from '../wolf/WolfText'
 
 export interface GlossaryActor {
   readonly id: number
@@ -47,7 +48,8 @@ export const isMaterialFile = (file: string) => {
     name === 'CommonEvents.json' ||
     name === 'Troops.json' ||
     Object.hasOwn(nameFiles, name) ||
-    isMapFile(name)
+    isMapFile(name) ||
+    isWolfTextFile(file)
   )
 }
 
@@ -113,7 +115,10 @@ export const collectMaterial = () => {
   const names = new Map<string, GlossaryName>()
 
   const add = (file: string, data: RpgData) => {
-    for (const [pointer, speaker] of dialogueSpeakers(file, data)) {
+    for (const [pointer, speaker] of [
+      ...dialogueSpeakers(file, data),
+      ...wolfSpeakers(file, data),
+    ]) {
       speakers.set(`${file}::${pointer}`, speaker)
     }
 
@@ -121,7 +126,7 @@ export const collectMaterial = () => {
       actors.push(...actorsOf(data))
     }
 
-    for (const found of namesOf(file, data)) {
+    for (const found of [...namesOf(file, data), ...wolfDatabaseNames(file, data)]) {
       if (hasLetters(found.name) && !names.has(found.name)) {
         names.set(found.name, found)
       }

@@ -14,7 +14,7 @@ import { Exit } from 'effect'
 import { AsyncResult } from 'effect/reactivity'
 import { useState } from 'react'
 import type { LineCounts, LineFilter, TranslationLine, WriteSkip } from '#contract/GameTranslation'
-import type { Game, GameEngine } from '#contract/Library'
+import type { Game, GameEngine, MessageWindow } from '#contract/Library'
 import { fitOf } from '#contract/TextFit'
 import { formErrorOf } from '#lib/forms'
 import { translationReviewAtom } from '#lib/navigation'
@@ -99,17 +99,19 @@ function StatePill({ line }: { readonly line: TranslationLine }) {
 function LineButton({
   line,
   engine,
+  window,
   selected,
   onSelect,
 }: {
   readonly line: TranslationLine
   readonly engine: GameEngine
+  readonly window: MessageWindow | undefined
   readonly selected: boolean
   readonly onSelect: () => void
 }) {
   const tooLong =
     line.translatedText !== undefined &&
-    fitOf(engine, line.context, line.translatedText)?.status === 'too-long'
+    fitOf(engine, line.context, line.translatedText, window)?.status === 'too-long'
 
   return (
     <Button
@@ -316,6 +318,7 @@ function LineEditor({
 
       <FitPreview
         engine={game.engine}
+        window={game.text?.window}
         context={line.context}
         text={draft}
         shortening={busy}
@@ -556,6 +559,7 @@ export function TranslationReviewPage({ game }: { readonly game: Game }) {
                     key={line.entryId}
                     line={line}
                     engine={game.engine}
+                    window={game.text?.window}
                     selected={line.entryId === selected?.entryId}
                     onSelect={() => setSelectedId(line.entryId)}
                   />

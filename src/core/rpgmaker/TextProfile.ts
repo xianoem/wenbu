@@ -1,5 +1,6 @@
 import { Predicate } from 'effect'
-import type { TextProfile } from '#contract/Library'
+import type { GameEngine, TextProfile } from '#contract/Library'
+import { wolfWindowOf } from '../wolf/WolfText'
 import type { TextLocation } from './TextLocations'
 
 const visibleText = (text: string) =>
@@ -31,7 +32,10 @@ const languageOf = (text: string) => {
   return kana >= han * 0.05 ? 'Japanese' : 'Chinese'
 }
 
-export const textProfile = (locations: ReadonlyArray<TextLocation>): TextProfile | undefined => {
+export const textProfile = (
+  locations: ReadonlyArray<TextLocation>,
+  engine?: GameEngine,
+): TextProfile | undefined => {
   const dialogue = locations
     .filter((location) => location.dialogue === true)
     .map((location) => (Predicate.isString(location.value) ? visibleText(location.value) : ''))
@@ -44,9 +48,13 @@ export const textProfile = (locations: ReadonlyArray<TextLocation>): TextProfile
   const language = languageOf(dialogue)
   const characters = [...dialogue].length
 
+  // RPG Maker windows are the same in every game; a WOLF game's is measured from its text.
+  const window = engine === 'wolf-rpg' ? wolfWindowOf(locations) : undefined
+
   return {
     language,
     dialogueCharacters: characters,
     readingMinutes: Math.max(1, Math.round(characters / (readingSpeed[language] ?? 1000))),
+    ...(window === undefined ? {} : { window }),
   }
 }

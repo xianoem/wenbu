@@ -1,7 +1,7 @@
 import { Effect, FileSystem, Option, type Path } from 'effect'
 import { type Game, LibraryError, LibraryRpc } from '#contract/Library'
 import { createCgPack, imageFolders } from './CgPack'
-import { inspectFolder } from './GameFolder'
+import { inspectFolder, isWolfFolder } from './GameFolder'
 import { GameLauncher } from './GameLauncher'
 import { listPrograms } from './GamePrograms'
 import { Games } from './Games'
@@ -33,6 +33,19 @@ export const LibraryRpcLive = LibraryRpc.toLayer(
     yield* Effect.forEach(yield* games.localeUnchecked, (game) => checkLocale(game), {
       discard: true,
     })
+
+    // Games added before Wenbu knew an engine were stored as plain Windows games.
+    const recognise = Effect.fnUntraced(function* (game: Game) {
+      if (game.engine !== 'windows') {
+        return
+      }
+
+      if (yield* isWolfFolder(game.folderPath).pipe(Effect.provideContext(services))) {
+        yield* games.setEngine(game.id, 'wolf-rpg')
+      }
+    })
+
+    yield* Effect.forEach(yield* games.list, (game) => recognise(game), { discard: true })
 
     return LibraryRpc.of({
       listGames: () => games.list,

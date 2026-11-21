@@ -154,7 +154,8 @@ function EmptyLibrary({ onAdd }: { readonly onAdd: () => void }) {
       </div>
       <p className="mt-1 text-base font-semibold">Your library is empty</p>
       <p className="max-w-sm text-muted-foreground">
-        Add a game folder. Wenbu finds the game, measures its story and translates RPG Maker games.
+        Add a game folder. Wenbu finds the game, measures its story and translates RPG Maker and
+        WOLF RPG games.
       </p>
       <Button variant="outline" className="mt-1.5 rounded-full" onClick={onAdd}>
         <PlusIcon />
