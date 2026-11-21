@@ -46,6 +46,7 @@ const looks: Readonly<Record<ReleaseArea, Look>> = {
   overlay: { Icon: MonitorPlayIcon, tint: 'teal', settingsPage: 'overlay' },
   subtitles: { Icon: SubtitlesIcon, tint: 'teal', settingsPage: 'subtitles' },
   detections: { Icon: ScanIcon, tint: 'teal', settingsPage: 'detections' },
+  'quick-translate': { Icon: TranslateIcon, tint: 'teal', settingsPage: 'general' },
   'live-controls': { Icon: MagicWandIcon, tint: 'violet' },
   ingametext: { Icon: TextAaIcon, tint: 'violet' },
   'game-guide': { Icon: CompassIcon, tint: 'violet' },

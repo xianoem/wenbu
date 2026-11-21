@@ -18,6 +18,7 @@ import { MemoriesRpc } from './Memories'
 import { NovelsRpc } from './Novels'
 import { PicturesRpc } from './Pictures'
 import { PluginsRpc } from './Plugins'
+import { QuickTranslateRpc } from './QuickTranslate'
 import { StorageRpc } from './Storage'
 import { SubtitlesRpc } from './Subtitles'
 import { TranslationOverlayRpc } from './TranslationOverlay'
@@ -47,4 +48,5 @@ export const WenbuRpc = AppearanceRpc.merge(
   DetailsRpc,
   NovelsRpc,
   UpdatesRpc,
+  QuickTranslateRpc,
 ).middleware(RpcLogging)

@@ -50,6 +50,7 @@ import {
   NoticeReplied,
   OverlayWindow,
   PageFetch,
+  QuickTranslateState,
   ShowNotice,
   SourceSignIn,
   SourceSignOut,
@@ -74,12 +75,14 @@ import trayOnLightDownloadingIco from '../../build/tray-on-light-downloading.ico
 import { appUpdater, type CheckResult } from './appUpdater'
 import { clipboardLink } from './clipboardLink'
 import { closeDecision } from './closeDecision'
+import { copyWatcher } from './copyWatcher'
 import { coreSupervisor, type CoreSupervisor } from './coreSupervisor'
 import { coreCrashBudget } from './crashBudget'
 import { type CredentialKey, loadCredentialKey, type SecretProtector } from './credentialKey'
 import { diagnosticsReport } from './diagnosticsReport'
 import { liveControlsWindow } from './liveControlsWindow'
 import { overlayWindow } from './overlayWindow'
+import { quickTranslateWindow } from './quickTranslateWindow'
 import { subtitleWindow } from './subtitleWindow'
 import { browserSignIns, chromeAgent } from './browserSignIn'
 import { novelPages } from './novelPages'
@@ -149,6 +152,9 @@ const safeStorageProtector: SecretProtector = {
 
 const userAgent = () => chromeAgent(app.userAgentFallback, process.versions.chrome)
 
+const resourcesDir = () =>
+  app.isPackaged ? process.resourcesPath : join(app.getAppPath(), 'resources')
+
 const startCore = (credentialKey: CredentialKey, run: number) => {
   const core = utilityProcess.fork(join(import.meta.dirname, 'core.js'), [], {
     serviceName: 'Wenbu core',
@@ -159,9 +165,7 @@ const startCore = (credentialKey: CredentialKey, run: number) => {
       WENBU_LOG_DIR: log.folder,
       WENBU_CORE_RUN: String(run),
       WENBU_APP_VERSION: versionLabel(),
-      WENBU_RESOURCES_DIR: app.isPackaged
-        ? process.resourcesPath
-        : join(app.getAppPath(), 'resources'),
+      WENBU_RESOURCES_DIR: resourcesDir(),
       WENBU_CREDENTIAL_KEY: Redacted.value(credentialKey.key),
       WENBU_KEY_PROTECTION: credentialKey.protection,
       WENBU_USER_AGENT: userAgent(),
@@ -209,7 +213,7 @@ const isAppUrl = (url: string) =>
 
 const loadPage = (
   window: BrowserWindow,
-  page: 'index' | 'overlay' | 'livecontrols' | 'subtitles' | 'tray',
+  page: 'index' | 'overlay' | 'livecontrols' | 'subtitles' | 'tray' | 'quicktranslate',
 ) => {
   if (rendererUrl === undefined) {
     void window.loadFile(join(import.meta.dirname, `../renderer/${page}.html`))
@@ -439,6 +443,79 @@ const startLiveControls = (core: CoreSupervisor) => {
   })
 
   app.on('before-quit', () => live.destroy())
+}
+
+const isQuickTranslateState = Schema.is(QuickTranslateState)
+
+const keysHelperPath = () =>
+  join(resourcesDir(), 'native', `${process.platform}-${process.arch}`, 'wenbu-keys.exe')
+
+const startQuickTranslate = (core: CoreSupervisor) => {
+  if (process.platform !== 'win32') {
+    return
+  }
+
+  const card = quickTranslateWindow({
+    preloadPath,
+    load: (window) => {
+      keepInApp(window)
+      loadPage(window, 'quicktranslate')
+    },
+    connect: (window) => connectToCore(core, window),
+  })
+
+  const watcher = copyWatcher({
+    helperPath: keysHelperPath(),
+    log,
+    onDoubleCopy: () =>
+      void clipboard.readText().then((text) => {
+        if (text.trim() !== '') {
+          card.open(text)
+        }
+      }),
+  })
+
+  core.on('message', (message) => {
+    if (!isQuickTranslateState(message)) {
+      return
+    }
+
+    watcher.setEnabled(message.enabled)
+
+    if (!message.enabled) {
+      card.hide()
+    }
+  })
+
+  ipcMain.on(bridgeChannels.resizeQuickTranslate, (event, height) => {
+    if (Predicate.isNumber(height)) {
+      card.resize(event.sender, height)
+    }
+  })
+
+  ipcMain.on(bridgeChannels.quickTranslatePainted, (event) => card.painted(event.sender))
+
+  ipcMain.on(bridgeChannels.hideQuickTranslate, (event) => card.hideFrom(event.sender))
+
+  ipcMain.on(bridgeChannels.pinQuickTranslate, (event, pinned) => {
+    if (Predicate.isBoolean(pinned)) {
+      card.pin(event.sender, pinned)
+    }
+  })
+
+  ipcMain.on(bridgeChannels.openApp, () => card.hide())
+
+  Effect.runFork(
+    Effect.andThen(
+      Effect.sleep('4 seconds'),
+      Effect.sync(() => card.prepare()),
+    ),
+  )
+
+  app.on('before-quit', () => {
+    watcher.stop()
+    card.destroy()
+  })
 }
 
 const isSourceSignIn = Schema.is(SourceSignIn)
@@ -1185,6 +1262,7 @@ const start = Effect.gen(function* () {
   startOverlay(core)
   startSubtitles(core)
   startLiveControls(core)
+  startQuickTranslate(core)
   startSignIns(core)
   startNovelPages(core)
 

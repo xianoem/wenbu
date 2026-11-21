@@ -13,6 +13,7 @@ import {
   NoticeReplied,
   OverlayBounds,
   type OverlayWindow,
+  QuickTranslateState,
   type ShowNotice,
   SubtitleBounds,
   SubtitleLockToggle,
@@ -81,6 +82,7 @@ import * as Database from './platform/Database'
 import { DiskSpace } from './platform/DiskSpace'
 import * as PortRunner from './platform/PortRunner'
 import { Plugins, PluginsRpcLive } from './plugins/Plugins'
+import { QuickTranslate, QuickTranslateRpcLive } from './quicktranslate/QuickTranslate'
 import { GameData } from './rpgmaker/GameData'
 import { StorageLive } from './storage/Storage'
 import { LiveSubtitles, SubtitlesRpcLive } from './subtitles/LiveSubtitles'
@@ -520,6 +522,28 @@ const CoreStartedLive = Layer.effectDiscard(
   }),
 )
 
+const QuickTranslateMainLive = Layer.effectDiscard(
+  Effect.gen(function* () {
+    const quick = yield* QuickTranslate
+
+    const toMain = (message: QuickTranslateState) =>
+      // oxlint-disable-next-line unicorn/require-post-message-target-origin -- Electron's parentPort is not a window and takes no target origin.
+      Effect.sync(() => process.parentPort.postMessage(message))
+
+    yield* quick.settingsChanges.pipe(
+      Stream.map((settings) => settings.enabled),
+      Stream.changes,
+      Stream.runForEach((enabled) => toMain(QuickTranslateState.make({ enabled }))),
+      Effect.forkScoped,
+    )
+  }),
+)
+
+const QuickTranslateLive = Layer.mergeAll(QuickTranslateRpcLive, QuickTranslateMainLive).pipe(
+  Layer.provide(QuickTranslate.layer),
+  Layer.provide(LlmLive),
+)
+
 const NovelsLive = NovelsRpcLive.pipe(
   Layer.provide([
     NovelStore.layer,
@@ -562,6 +586,7 @@ const CoreLive = RpcServer.layer(WenbuRpc).pipe(
     DashboardRpcLive,
     DetailsLive,
     NovelsLive,
+    QuickTranslateLive,
     UpdatesLive,
     RpcLoggingLive,
   ]),

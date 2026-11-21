@@ -10,6 +10,7 @@ export const releaseAreas = {
   overlay: 'Translation Overlay',
   subtitles: 'Subtitles',
   detections: 'Detections',
+  'quick-translate': 'Quick Translate',
   'live-controls': 'Live Game Controls',
   ingametext: 'In-game text',
   'game-guide': 'Game Guide',

@@ -98,6 +98,10 @@ const onQuitAsked = latestEvent<void>(bridgeChannels.quitAsked)
 
 const onPanelShown = latestEvent<BridgeListener<'onPanelShown'>>(bridgeChannels.panelShown)
 
+const onQuickTranslate = latestEvent<BridgeListener<'onQuickTranslate'>>(
+  bridgeChannels.quickTranslate,
+)
+
 const bridge: WenbuBridge = {
   window: (action) => ipcRenderer.send(bridgeChannels.window, action),
   chooseFolder: () => ipcRenderer.invoke(bridgeChannels.chooseFolder),
@@ -125,6 +129,11 @@ const bridge: WenbuBridge = {
   resizePanel: (height) => ipcRenderer.send(bridgeChannels.resizePanel, height),
   panelPainted: () => ipcRenderer.send(bridgeChannels.panelPainted),
   hidePanel: () => ipcRenderer.send(bridgeChannels.hidePanel),
+  onQuickTranslate,
+  resizeQuickTranslate: (height) => ipcRenderer.send(bridgeChannels.resizeQuickTranslate, height),
+  quickTranslatePainted: () => ipcRenderer.send(bridgeChannels.quickTranslatePainted),
+  hideQuickTranslate: () => ipcRenderer.send(bridgeChannels.hideQuickTranslate),
+  pinQuickTranslate: (pinned) => ipcRenderer.send(bridgeChannels.pinQuickTranslate, pinned),
 }
 
 contextBridge.exposeInMainWorld('wenbu', bridge)

@@ -23,6 +23,7 @@ const groupOfFeature: Record<UsageFeature, SpendGroup> = {
   'in-game-text': 'other',
   details: 'other',
   novels: 'other',
+  'quick-translate': 'other',
 }
 
 export interface Bar {

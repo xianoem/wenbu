@@ -34,6 +34,7 @@ export default defineConfig({
           livecontrols: resolve('src/renderer/livecontrols.html'),
           subtitles: resolve('src/renderer/subtitles.html'),
           tray: resolve('src/renderer/tray.html'),
+          quicktranslate: resolve('src/renderer/quicktranslate.html'),
         },
       },
     },

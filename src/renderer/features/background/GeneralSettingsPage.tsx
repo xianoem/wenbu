@@ -9,6 +9,7 @@ import {
   saveDetectionSettingsAtom,
 } from '../detections/detections'
 import { useDetectionsAvailable } from '../detections/hooks/useDetectionsAvailable'
+import { QuickTranslateSettings } from '../quicktranslate/QuickTranslateSettings'
 import { Segmented } from '../settings/components/Segmented'
 import { SettingRow, SettingsCard } from '../settings/components/SettingsCard'
 import { backgroundKeys, backgroundSettingsAtom, saveBackgroundSettingsAtom } from './background'
@@ -121,6 +122,8 @@ function BackgroundForm({
           </SettingRow>
         ))}
       </SettingsCard>
+
+      {window.wenbu.platform === 'win32' ? <QuickTranslateSettings /> : null}
 
       <SettingsCard
         title="Always on"

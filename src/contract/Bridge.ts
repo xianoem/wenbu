@@ -30,6 +30,16 @@ export interface WenbuBridge {
   readonly resizePanel: (height: number) => void
   readonly panelPainted: () => void
   readonly hidePanel: () => void
+  readonly onQuickTranslate: (listener: (shown: QuickTranslateShown) => void) => () => void
+  readonly resizeQuickTranslate: (height: number) => void
+  readonly quickTranslatePainted: () => void
+  readonly hideQuickTranslate: () => void
+  readonly pinQuickTranslate: (pinned: boolean) => void
+}
+
+export interface QuickTranslateShown {
+  readonly id: number
+  readonly text: string
 }
 
 export interface PanelShown {
@@ -62,4 +72,9 @@ export const bridgeChannels = {
   resizePanel: 'wenbu:resize-panel',
   panelPainted: 'wenbu:panel-painted',
   hidePanel: 'wenbu:hide-panel',
+  quickTranslate: 'wenbu:quick-translate',
+  resizeQuickTranslate: 'wenbu:resize-quick-translate',
+  quickTranslatePainted: 'wenbu:quick-translate-painted',
+  hideQuickTranslate: 'wenbu:hide-quick-translate',
+  pinQuickTranslate: 'wenbu:pin-quick-translate',
 } as const

@@ -12,6 +12,7 @@ const helpers = [
   ...(windows
     ? [
         { name: 'luna-hook', outputs: ['wenbu-luna-hook.exe'] },
+        { name: 'keys', outputs: ['wenbu-keys.exe'] },
         {
           name: 'manga-engine',
           outputs: [

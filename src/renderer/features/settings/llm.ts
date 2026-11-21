@@ -29,7 +29,14 @@ export const deletionImpactAtom = Atom.family((key: `${'connection' | 'preset'}:
   return Core.query(
     'describeDeletion',
     { kind: kind === 'connection' ? 'connection' : 'preset', id: id ?? '' },
-    { reactivityKeys: [...llmKeys, 'translation-settings', 'detection-settings'] },
+    {
+      reactivityKeys: [
+        ...llmKeys,
+        'translation-settings',
+        'detection-settings',
+        'quick-translate-settings',
+      ],
+    },
   )
 })
 

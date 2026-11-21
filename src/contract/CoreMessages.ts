@@ -127,6 +127,12 @@ export const TrayState = Schema.TaggedStruct('TrayState', {
 
 export type TrayState = typeof TrayState.Type
 
+export const QuickTranslateState = Schema.TaggedStruct('QuickTranslateState', {
+  enabled: Schema.Boolean,
+})
+
+export type QuickTranslateState = typeof QuickTranslateState.Type
+
 export const TrayToggle = Schema.TaggedStruct('TrayToggle', {
   listener: Schema.Literals(['images', 'links']),
   on: Schema.Boolean,

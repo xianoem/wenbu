@@ -83,6 +83,7 @@ export const UsageFeature = Schema.Literals([
   'in-game-text',
   'details',
   'novels',
+  'quick-translate',
 ])
 
 export type UsageFeature = typeof UsageFeature.Type
