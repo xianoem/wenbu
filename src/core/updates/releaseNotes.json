@@ -1,5 +1,16 @@
 [
   {
+    "version": "0.8.1",
+    "date": "2026-11-27",
+    "changes": [
+      {
+        "kind": "fixed",
+        "area": "translation",
+        "text": "Keep lines whose control codes the model dropped"
+      }
+    ]
+  },
+  {
     "version": "0.8.0",
     "date": "2026-11-21",
     "changes": [
