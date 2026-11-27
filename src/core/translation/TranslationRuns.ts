@@ -26,7 +26,7 @@ import {
   type TextEntry,
   type TranslationItem,
 } from '../rpgmaker/TextEntries'
-import { batchesOf, batchPrompt, parseReply, systemPrompt } from './Batches'
+import { batchesOf, batchPrompt, keepsFormatting, parseReply, systemPrompt } from './Batches'
 import { batchTokens, costOf, estimateCost, type PromptOf } from './CostEstimate'
 import type { GameGlossaryFlow, PreparationUsage } from './GameGlossaryFlow'
 import { diffSources, pendingOf } from './SourceDiff'
@@ -268,6 +268,7 @@ export const makeTranslationRuns = Effect.fnUntraced(function* (
     let translatedLines = keptLines
 
     const entryIdsOf = new Map(items.map((item) => [item.id, item.entryIds]))
+    const sourceOf = new Map(items.map((item) => [item.id, item.src]))
 
     for (let round = 1; round <= settings.retryRounds; round++) {
       const pending = items.filter((item) => !translations.has(item.id))
@@ -295,9 +296,19 @@ export const makeTranslationRuns = Effect.fnUntraced(function* (
             timeout: `${settings.timeoutSeconds} seconds`,
           })
 
-          const found = yield* parseReply(completion.text, batch, settings).pipe(
+          const replied = yield* parseReply(completion.text, batch, settings).pipe(
             Effect.mapError(() => failed('The reply was not the JSON Wenbu asked for.')),
           )
+
+          // A reply that lost codes goes back for another round; the last round keeps it for review.
+          const found =
+            round === settings.retryRounds
+              ? replied
+              : new Map(
+                  [...replied].filter(([id, text]) =>
+                    keepsFormatting(sourceOf.get(id) ?? '', text, settings.formatting),
+                  ),
+                )
 
           settled.actual = {
             usd:

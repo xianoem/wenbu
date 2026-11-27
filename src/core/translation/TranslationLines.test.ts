@@ -6,7 +6,7 @@ import type { TranslationLine } from '#contract/GameTranslation'
 import type { TextEntry } from '../rpgmaker/TextEntries'
 import type { TextLocation } from '../rpgmaker/TextLocations'
 import * as Database from '../platform/Database'
-import { appliedTranslations, TranslationLines } from './TranslationLines'
+import { appliedTranslations, requeueBrokenFormatting, TranslationLines } from './TranslationLines'
 
 const TestLayer = TranslationLines.layer.pipe(
   Layer.provideMerge(Database.layer(':memory:')),
@@ -158,6 +158,43 @@ describe('TranslationLines', () => {
       ).toEqual([false, true, false])
 
       expect(yield* store.translations('game')).toEqual(new Map([[hello.id, 'Hi']]))
+    }).pipe(Effect.provide(TestLayer)),
+  )
+
+  it.effect('sends model lines the game kept out for lost codes back to translate', () =>
+    Effect.gen(function* () {
+      const store = yield* TranslationLines
+      const kept = entry('/events/1/2', 'ありがとう')
+
+      yield* addGame('game')
+      yield* store.reconcile('game', [hello, bye, kept])
+
+      yield* store.saveTranslations('game', [
+        { entryId: hello.id, text: 'Hello' },
+        { entryId: bye.id, text: 'Bye' },
+        { entryId: kept.id, text: 'Thanks' },
+      ])
+
+      yield* store.edit('game', bye.id, 'Goodbye')
+
+      yield* store.markSkipped(
+        'game',
+        new Map([
+          [hello.id, 'broken-formatting'],
+          [bye.id, 'broken-formatting'],
+          [kept.id, 'source-mismatch'],
+        ] as const),
+      )
+
+      yield* requeueBrokenFormatting
+
+      expect([...(yield* store.pending('game', 'missing'))]).toEqual([hello.id])
+
+      expect((yield* store.lines('game')).map((line) => line.writeSkipped)).toEqual([
+        undefined,
+        'broken-formatting',
+        'source-mismatch',
+      ])
     }).pipe(Effect.provide(TestLayer)),
   )
 })

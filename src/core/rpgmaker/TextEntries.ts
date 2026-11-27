@@ -1,5 +1,6 @@
 import { Predicate } from 'effect'
 import type { TranslationSettings } from '#contract/GameTranslation'
+import { isControlCodesOnly } from './ControlCodes'
 import { noProtectedText, type ProtectedText, protectionOf } from './ProtectedText'
 import type { TextLocation } from './TextLocations'
 
@@ -50,9 +51,6 @@ const isFilename = (text: string) =>
 const isNumber = (text: string) => /^[-+]?\d+(?:\.\d+)?$/.test(text)
 
 const isPunctuation = (text: string) => !/[A-Za-z0-9぀-ヿ㐀-鿿가-힯]/.test(text)
-
-const isControlCodesOnly = (text: string) =>
-  text.replace(/\\[A-Za-z]+\[[^\]]*\]|\\[A-Za-z{}.|!><^$]/g, '').trim() === ''
 
 const isCodeLike = (text: string) => /^(?:true|false|null|none|auto|undefined)$/i.test(text)
 

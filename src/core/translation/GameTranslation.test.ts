@@ -69,6 +69,32 @@ const presets: Record<string, PresetDescription> = {
 
 const requests: Array<CompletionRequest> = []
 
+const seenLossy = new Set<string>()
+
+const lossyReply = (text: string) => {
+  const first = !seenLossy.has(text)
+
+  seenLossy.add(text)
+
+  return first ? text.replace(/\\[A-Za-z]+\d*\[[^\]]*\]/g, '') : text
+}
+
+const fakeTranslation = (prompt: string, text: string) => {
+  if (prompt.startsWith('Shorten')) {
+    return 'Short'
+  }
+
+  if (text === 'same') {
+    return 'same'
+  }
+
+  if (text.includes('uncoded')) {
+    return `EN:${text.replace(/\\C\[\d+\]/g, '')}`
+  }
+
+  return text.includes('lossy') ? `EN:${lossyReply(text)}` : `EN:${text}`
+}
+
 const requestsOf = (gameId: string) => requests.filter((request) => request.gameId === gameId)
 
 const preparedGlossary = {
@@ -114,16 +140,7 @@ const LlmFake = Layer.succeed(LlmClient)({
       const reply = Object.fromEntries(
         Object.entries(batch)
           .filter(([, item]) => !item.text.includes('never'))
-          .map(([key, item]) => [
-            key,
-            request.prompt.startsWith('Shorten')
-              ? 'Short'
-              : item.text === 'same'
-                ? 'same'
-                : item.text.includes('uncoded')
-                  ? `EN:${item.text.replace(/\\C\[\d+\]/g, '')}`
-                  : `EN:${item.text}`,
-          ]),
+          .map(([key, item]) => [key, fakeTranslation(request.prompt, item.text)]),
       )
 
       return {
@@ -732,6 +749,35 @@ describe('GameTranslation', () => {
       expect(page.lines.map((line) => [line.translatedText, line.applied])).toEqual([
         ['EN:こんにちは', true],
       ])
+    }).pipe(Effect.scoped, Effect.provide(TestLayer)),
+  )
+
+  it.live('sends text without its edge codes and retries replies that lose codes', () =>
+    Effect.gen(function* () {
+      const { translation, game, folder, finished, mapText } = yield* setup([])
+      const fs = yield* FileSystem.FileSystem
+      const path = yield* Path.Path
+
+      yield* fs.writeFileString(
+        path.join(folder, 'www', 'data', 'Map001.json'),
+        yield* encodeJson(
+          messagesMap(['\\AA[1]\\F1[a1]lossy あいさつ\\FH[OFF]', '\\C[16]lossy 色\\c[0]です']),
+        ),
+      )
+
+      yield* translation.startTranslation({ gameId: game.id })
+
+      const run = yield* finished
+      const prompts = requestsOf(game.id).map((request) => request.prompt)
+
+      expect(run.status).toBe('translated')
+      expect(prompts.some((prompt) => prompt.includes('\\\\AA[1]'))).toBe(false)
+      expect(prompts.some((prompt) => prompt.includes('"lossy あいさつ"'))).toBe(true)
+
+      const text = yield* mapText
+
+      expect(text).toContain('"\\\\AA[1]\\\\F1[a1]EN:lossy あいさつ\\\\FH[OFF]"')
+      expect(text).toContain('"EN:\\\\C[16]lossy 色\\\\c[0]です"')
     }).pipe(Effect.scoped, Effect.provide(TestLayer)),
   )
 
@@ -1410,7 +1456,9 @@ describe('GameTranslation', () => {
 
       yield* fs.writeFileString(
         path.join(folder, 'www', 'data', 'Map001.json'),
-        yield* encodeJson(messagesMap(['same', 'こんにちは', '\\F[b1a]', '\\C[2]\\.'])),
+        yield* encodeJson(
+          messagesMap(['same', 'こんにちは', '\\F[b1a]', '\\C[2]\\.', '\\F1[a1]\\AA[1]']),
+        ),
       )
 
       yield* translation.startTranslation({ gameId: game.id })
@@ -1424,7 +1472,7 @@ describe('GameTranslation', () => {
         '3 lines written · 1 already the same',
       ])
 
-      expect(run.steps[1]?.notes).toContain('Skipped 2 values: control codes only')
+      expect(run.steps[1]?.notes).toContain('Skipped 3 values: control codes only')
       expect(run.usage.inputTokens).toBe(400)
     }).pipe(Effect.scoped, Effect.provide(TestLayer)),
   )

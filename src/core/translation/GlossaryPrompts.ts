@@ -2,6 +2,7 @@ import { Effect, Schema } from 'effect'
 import type { GameGlossaryEntry, GlossaryEntryKind } from '#contract/GameGlossary'
 import type { TranslationSettings } from '#contract/GameTranslation'
 import { makeMatcher } from '../glossary/GlossaryMatcher'
+import { promptTextOf } from '../rpgmaker/ControlCodes'
 import { speakerKeysOf } from '../rpgmaker/Speakers'
 import type { TextEntry, TranslationItem } from '../rpgmaker/TextEntries'
 import { batchPrompt, fencedJson, instructionsOf } from './Batches'
@@ -278,7 +279,7 @@ export const glossaryBatchPrompt = Effect.fnUntraced(function* (
       return [
         String(index + 1),
         {
-          text: item.src,
+          text: promptTextOf(item.src),
           context: item.context,
           ...(speaker === undefined ? {} : { speaker }),
         },

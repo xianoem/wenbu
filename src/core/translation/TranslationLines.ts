@@ -106,6 +106,16 @@ export const appliedTranslations = (
   })
 }
 
+// Earlier runs kept model replies that lost control codes, which the game never got.
+export const requeueBrokenFormatting = Effect.gen(function* () {
+  const sql = yield* SqlClient.SqlClient
+
+  yield* sql`
+    UPDATE translation_lines SET translated_text = NULL, write_skipped = NULL, applied = 0
+    WHERE write_skipped = 'broken-formatting' AND origin = 'model' AND locked = 0
+  `
+})
+
 export class TranslationLines extends Context.Service<
   TranslationLines,
   {

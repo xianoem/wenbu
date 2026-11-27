@@ -7,6 +7,7 @@ import {
 } from '#contract/GameTranslation'
 import type { Game } from '#contract/Library'
 import { characterBudget, type Fit, fitOf } from '#contract/TextFit'
+import { promptTextOf } from '../rpgmaker/ControlCodes'
 import type { TranslationItem } from '../rpgmaker/TextEntries'
 import { batchPrompt, parseReply, systemPrompt } from './Batches'
 import type { GameGlossaryFlow } from './GameGlossaryFlow'
@@ -36,7 +37,10 @@ const shortenPrompt = Effect.fnUntraced(function* (
   const limits = shortenLimits(fit)
 
   const items = Object.fromEntries(
-    batch.map((item, index) => [String(index + 1), { text: item.src, context: item.context }]),
+    batch.map((item, index) => [
+      String(index + 1),
+      { text: promptTextOf(item.src), context: item.context },
+    ]),
   )
 
   return [

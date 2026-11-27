@@ -3,6 +3,7 @@ import * as SqliteMigrator from '@effect/sql-sqlite-node/SqliteMigrator'
 import { Effect, Layer } from 'effect'
 import { SqlClient } from 'effect/sql'
 import { backfillFromRuns } from '../llm/UsageLog'
+import { requeueBrokenFormatting } from '../translation/TranslationLines'
 
 const migrations = SqliteMigrator.fromRecord({
   '0001_llm': Effect.gen(function* () {
@@ -858,6 +859,7 @@ const migrations = SqliteMigrator.fromRecord({
 
     yield* sql`ALTER TABLE games ADD COLUMN text_window TEXT`
   }),
+  '0033_requeue_broken_formatting': requeueBrokenFormatting,
 })
 
 export const layer = (filename: string) =>

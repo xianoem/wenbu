@@ -1,7 +1,7 @@
 import { describe, expect, it } from '@effect/vitest'
 import { Effect } from 'effect'
 import { defaultTranslationSettings } from '#contract/GameTranslation'
-import { batchPrompt, systemPrompt } from './Batches'
+import { batchPrompt, keepsFormatting, parseReply, systemPrompt } from './Batches'
 
 describe('batchPrompt', () => {
   it.effect('sends the same request text as before the game glossary', () =>
@@ -38,6 +38,32 @@ describe('batchPrompt', () => {
       expect(prompt).toContain('{"1":{"text":"こんにちは","context":"Show Text"}}')
     }),
   )
+
+  it.effect('leaves the codes at the edges of a line out and puts them back', () =>
+    Effect.gen(function* () {
+      const item = {
+        id: 'a',
+        src: '\\AA[1]\\F1[k1]おはよう。\\FH[OFF]',
+        context: 'Show Text',
+        entryIds: ['a'],
+      }
+
+      const prompt = yield* batchPrompt(defaultTranslationSettings, [item])
+      const found = yield* parseReply('{"1":"Morning."}', [item], defaultTranslationSettings)
+
+      expect(prompt).toContain('{"1":{"text":"おはよう。","context":"Show Text"}}')
+      expect(found.get('a')).toBe('\\AA[1]\\F1[k1]Morning.\\FH[OFF]')
+    }),
+  )
+
+  it('tells a reply that lost a control code or placeholder', () => {
+    const formatting = defaultTranslationSettings.formatting
+
+    expect(keepsFormatting('\\C[16]色\\c[0]です', 'Color', formatting)).toBe(false)
+    expect(keepsFormatting('%1を手に入れた', 'Got it', formatting)).toBe(false)
+    expect(keepsFormatting('\\C[16]色\\c[0]', '\\C[16]Color\\c[0]', formatting)).toBe(true)
+    expect(keepsFormatting('一行目\n二行目', 'One line', formatting)).toBe(true)
+  })
 
   it('translates into English unless told otherwise', () => {
     expect(defaultTranslationSettings.targetLanguage).toBe('English')

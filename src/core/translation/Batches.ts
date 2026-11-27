@@ -1,5 +1,7 @@
 import { Effect, Predicate, Schema } from 'effect'
 import type { TranslationSettings } from '#contract/GameTranslation'
+import { formattingProblems } from '../rpgmaker/ApplyTranslations'
+import { promptTextOf, restoreEdgeCodes } from '../rpgmaker/ControlCodes'
 import type { TranslationItem } from '../rpgmaker/TextEntries'
 
 export const estimateTokens = (text: string) => {
@@ -48,11 +50,23 @@ export const batchPrompt = Effect.fnUntraced(function* (
   batch: ReadonlyArray<TranslationItem>,
 ) {
   const items = Object.fromEntries(
-    batch.map((item, index) => [String(index + 1), { text: item.src, context: item.context }]),
+    batch.map((item, index) => [
+      String(index + 1),
+      { text: promptTextOf(item.src), context: item.context },
+    ]),
   )
 
   return [...instructionsOf(settings), yield* Effect.orDie(encodeJson(items))].join('\n\n')
 })
+
+// Line breaks are left out: the game spreads a shorter reply over its message lines.
+export const keepsFormatting = (
+  source: string,
+  translated: string,
+  formatting: TranslationSettings['formatting'],
+) =>
+  !formatting.rejectBrokenFormatting ||
+  formattingProblems(source, translated, { ...formatting, preserveLineBreaks: false }).length === 0
 
 export const fencedJson = (reply: string) =>
   (/```(?:json)?\s*([\s\S]*?)```/.exec(reply)?.[1] ?? reply).trim()
@@ -72,11 +86,13 @@ export const parseReply = Effect.fnUntraced(function* (
   const translations = new Map<string, string>()
 
   for (const [index, item] of batch.entries()) {
-    const value = values[String(index + 1)]
+    const reply = values[String(index + 1)]
 
-    if (!Predicate.isString(value) || value.trim() === '') {
+    if (!Predicate.isString(reply) || reply.trim() === '') {
       continue
     }
+
+    const value = restoreEdgeCodes(item.src, reply)
 
     const untranslated =
       value === item.src &&
